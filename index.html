@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามการปลูกต้นไม้</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- PapaParse -->
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        /* Custom scrollbar for better look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .leaflet-popup-content { margin: 12px; }
+    </style>
+    <!-- Google Font for Thai -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+    <div id="root" class="h-full flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Icons (Inline SVG Components) ---
+        const IconSprout = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>;
+        const IconTrees = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 10v.2A3 3 0 0 1 8.9 16v0H5v0h0a3 3 0 0 1-1-5.8V10a3 3 0 0 1 5.3-2.1"/><path d="M7 16v6"/><path d="M13 19v3"/><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .6-1.7L13 3l-1.4 1.5"/></svg>;
+        const IconSearch = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+        const IconMap = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>;
+        const IconTable = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>;
+        const IconCalendar = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+        const IconUser = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        const IconLoader = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+
+        // --- Utility: Auto-detect columns ---
+        const detectColumns = (firstRow) => {
+            const keys = Object.keys(firstRow);
+            
+            const latKey = keys.find(k => ['lat', 'latitude', 'ละติจูด', 'latitude (n)'].some(sub => k.toLowerCase().includes(sub)));
+            const lngKey = keys.find(k => ['lng', 'lon', 'long', 'longitude', 'ลองจิจูด', 'longitude (e)'].some(sub => k.toLowerCase().includes(sub)));
+            
+            // Prioritize keys that might be the tree name
+            const nameKey = keys.find(k => ['name', 'tree', 'species', 'plant', 'ชื่อ', 'ชนิด', 'พันธุ์', 'ต้น'].some(sub => k.toLowerCase().includes(sub))) || keys[0];
+            
+            const dateKey = keys.find(k => ['date', 'time', 'วัน', 'เวลา'].some(sub => k.toLowerCase().includes(sub)));
+            const planterKey = keys.find(k => ['by', 'planter', 'owner', 'ผู้ปลูก', 'คนปลูก'].some(sub => k.toLowerCase().includes(sub)));
+
+            return { latKey, lngKey, nameKey, dateKey, planterKey };
+        };
+
+        // --- Component: MapView (Using raw Leaflet to avoid dependency issues) ---
+        function MapView({ data, center, onMarkerClick, columns }) {
+            const mapRef = useRef(null);
+            const mapInstanceRef = useRef(null);
+            const markersRef = useRef([]);
+
+            // Init Map
+            useEffect(() => {
+                if (!mapRef.current) return;
+                
+                if (!mapInstanceRef.current) {
+                    mapInstanceRef.current = L.map(mapRef.current).setView(center, 12);
+                    
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(mapInstanceRef.current);
+                }
+
+                return () => {
+                    // Cleanup handled by logic below, typically we keep map instance alive
+                };
+            }, []);
+
+            // Update Markers
+            useEffect(() => {
+                const map = mapInstanceRef.current;
+                if (!map) return;
+
+                // Clear old markers
+                markersRef.current.forEach(marker => marker.remove());
+                markersRef.current = [];
+
+                // Custom Icon
+                const iconScale = 0.7;
+                const customIcon = new L.Icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers/marker-icon-2x-green.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25 * iconScale, 41 * iconScale],
+                    iconAnchor: [12 * iconScale, 41 * iconScale],
+                    popupAnchor: [1, -34 * iconScale],
+                    shadowSize: [41 * iconScale, 41 * iconScale]
+                });
+
+                data.forEach(tree => {
+                    const marker = L.marker([tree._lat, tree._lng], { icon: customIcon })
+                        .addTo(map);
+
+                    // Create Popup Content
+                    const popupContent = document.createElement('div');
+                    popupContent.className = 'p-1 min-w-[200px]';
+                    
+                    let details = '';
+                    Object.entries(tree).forEach(([key, val]) => {
+                        if (key.startsWith('_') || key === columns.nameKey || !val) return;
+                        details += `
+                            <div class="flex justify-between border-b border-dotted border-gray-200 pb-1 mb-1 last:border-0">
+                                <span class="font-medium text-gray-500 mr-2 text-sm">${key}:</span>
+                                <span class="text-gray-800 text-right text-sm">${val}</span>
+                            </div>
+                        `;
+                    });
+
+                    popupContent.innerHTML = `
+                        <h3 class="font-bold text-lg text-green-700 mb-2">${tree[columns.nameKey] || 'ไม่ระบุชื่อ'}</h3>
+                        <div class="space-y-1">${details}</div>
+                    `;
+
+                    marker.bindPopup(popupContent);
+                    markersRef.current.push(marker);
+                });
+
+            }, [data, columns]);
+
+            // Fly to center
+            useEffect(() => {
+                if (mapInstanceRef.current && center) {
+                    mapInstanceRef.current.flyTo(center, 14, { duration: 1.5 });
+                }
+            }, [center]);
+
+            return <div ref={mapRef} className="w-full h-full z-10" />;
+        }
+
+        // --- Main App ---
+        function App() {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [view, setView] = useState('dashboard'); // dashboard, list
+            const [searchTerm, setSearchTerm] = useState('');
+            const [columns, setColumns] = useState({});
+            const [mapCenter, setMapCenter] = useState([13.7563, 100.5018]);
+
+            const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    try {
+                        let csvText = '';
+                        
+                        // Step 1: Try fetching directly (Works if CORS allows)
+                        try {
+                            const response = await fetch(CSV_URL);
+                            if (!response.ok) throw new Error('Network response was not ok');
+                            csvText = await response.text();
+                        } catch (directError) {
+                            console.warn("Direct fetch failed, attempting proxy fallback...", directError);
+                            
+                            // Step 2: Fallback to CORS Proxy (Useful for local file://)
+                            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}`;
+                            const response = await fetch(proxyUrl);
+                            if (!response.ok) throw new Error('Failed to load via proxy');
+                            csvText = await response.text();
+                        }
+
+                        // Step 3: Parse CSV
+                        Papa.parse(csvText, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: (results) => {
+                                if (results.data && results.data.length > 0) {
+                                    const detected = detectColumns(results.data[0]);
+                                    setColumns(detected);
+                                    
+                                    // Process
+                                    const validData = results.data.filter(row => {
+                                        const lat = parseFloat(row[detected.latKey]);
+                                        const lng = parseFloat(row[detected.lngKey]);
+                                        return !isNaN(lat) && !isNaN(lng);
+                                    }).map((row, index) => ({
+                                        ...row,
+                                        _id: index,
+                                        _lat: parseFloat(row[detected.latKey]),
+                                        _lng: parseFloat(row[detected.lngKey])
+                                    }));
+
+                                    setData(validData);
+                                    if (validData.length > 0) {
+                                        setMapCenter([validData[0]._lat, validData[0]._lng]);
+                                    }
+                                }
+                                setLoading(false);
+                            },
+                            error: (err) => {
+                                setError("CSV Parse Error: " + (err.message || "Invalid CSV format"));
+                                setLoading(false);
+                            }
+                        });
+                    } catch (err) {
+                        // Detailed error message
+                        setError("ไม่สามารถโหลดข้อมูลได้ (อาจเป็นเพราะ Link หรือ Internet): " + err.message);
+                        setLoading(false);
+                    }
+                };
+
+                fetchData();
+            }, []);
+
+            const filteredData = useMemo(() => {
+                return data.filter(item => {
+                    if (!searchTerm) return true;
+                    const searchLower = searchTerm.toLowerCase();
+                    return Object.values(item).some(val => 
+                        String(val).toLowerCase().includes(searchLower)
+                    );
+                });
+            }, [data, searchTerm]);
+
+            const stats = useMemo(() => {
+                return {
+                    total: data.length,
+                    uniqueSpecies: new Set(data.map(d => d[columns.nameKey])).size,
+                };
+            }, [data, columns]);
+
+            if (loading) return (
+                <div className="flex flex-col items-center justify-center h-screen bg-green-50 text-green-800">
+                    <IconLoader className="w-12 h-12 animate-spin mb-4" />
+                    <p className="text-lg font-medium">กำลังโหลดข้อมูลการปลูกต้นไม้...</p>
+                </div>
+            );
+
+            if (error) return (
+                <div className="flex items-center justify-center h-screen bg-red-50 text-red-800 p-8">
+                    <div className="text-center max-w-md bg-white p-6 rounded-xl shadow-lg border border-red-100">
+                        <div className="bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-xl font-bold mb-2 text-gray-900">เกิดข้อผิดพลาด</h2>
+                        <p className="text-sm text-gray-600 mb-4">{error}</p>
+                        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">
+                            ลองใหม่
+                        </button>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="h-full flex flex-col font-sans">
+                    {/* Header */}
+                    <header className="bg-green-700 text-white shadow-lg sticky top-0 z-50 shrink-0">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <IconSprout className="w-8 h-8 text-green-300" />
+                                <h1 className="text-xl font-bold tracking-tight">Tree Tracker</h1>
+                            </div>
+                            <div className="hidden md:flex space-x-4 text-sm font-medium">
+                                <div className="bg-green-800 px-3 py-1 rounded-full flex items-center space-x-2">
+                                    <IconTrees className="w-4 h-4" />
+                                    <span>ทั้งหมด: {stats.total} ต้น</span>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col md:flex-row h-full overflow-hidden relative">
+                        
+                        {/* Sidebar / List View */}
+                        <div className={`flex flex-col w-full md:w-1/3 lg:w-96 bg-white shadow-xl z-20 transition-all duration-300 absolute md:relative h-full ${view === 'map' ? 'translate-y-full md:translate-y-0 hidden md:flex' : 'translate-y-0 flex'}`}>
+                            
+                            {/* Search */}
+                            <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
+                                <div className="relative mb-4">
+                                    <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                    <input 
+                                        type="text"
+                                        placeholder="ค้นหาชื่อ, สถานที่..."
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-sm"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 md:hidden">
+                                     <button onClick={() => setView('list')} className={`flex items-center justify-center py-2 rounded-md text-sm font-medium ${view === 'list' ? 'bg-green-100 text-green-700' : 'bg-white text-gray-600 border'}`}>
+                                        <IconTable className="w-4 h-4 mr-2" /> รายการ
+                                    </button>
+                                    <button onClick={() => setView('map')} className={`flex items-center justify-center py-2 rounded-md text-sm font-medium ${view === 'map' ? 'bg-green-100 text-green-700' : 'bg-white text-gray-600 border'}`}>
+                                        <IconMap className="w-4 h-4 mr-2" /> แผนที่
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Data List */}
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-100 pb-20 md:pb-2">
+                                {filteredData.length === 0 ? (
+                                    <div className="text-center py-10 text-gray-500">
+                                        <p>ไม่พบข้อมูล</p>
+                                    </div>
+                                ) : (
+                                    filteredData.map((tree) => (
+                                        <div 
+                                            key={tree._id}
+                                            onClick={() => {
+                                                setMapCenter([tree._lat, tree._lng]);
+                                                if(window.innerWidth < 768) setView('map');
+                                            }}
+                                            className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md cursor-pointer border-l-4 border-green-500 transition-all hover:bg-green-50 group"
+                                        >
+                                            <h3 className="font-bold text-gray-800 text-lg group-hover:text-green-700">{tree[columns.nameKey] || "ไม่ระบุชื่อ"}</h3>
+                                            
+                                            <div className="mt-2 text-sm text-gray-600 space-y-1">
+                                                {columns.dateKey && tree[columns.dateKey] && (
+                                                    <div className="flex items-center">
+                                                        <IconCalendar className="w-4 h-4 mr-2 text-green-600" />
+                                                        {tree[columns.dateKey]}
+                                                    </div>
+                                                )}
+                                                {columns.planterKey && tree[columns.planterKey] && (
+                                                    <div className="flex items-center">
+                                                        <IconUser className="w-4 h-4 mr-2 text-green-600" />
+                                                        {tree[columns.planterKey]}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center text-xs text-gray-400 mt-2">
+                                                    <IconMap className="w-3 h-3 mr-1" />
+                                                    {tree._lat.toFixed(5)}, {tree._lng.toFixed(5)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Map Container */}
+                        <div className={`flex-1 h-full relative ${view === 'list' ? 'hidden md:block' : 'block'}`}>
+                            <MapView 
+                                data={filteredData} 
+                                center={mapCenter} 
+                                columns={columns}
+                            />
+                            
+                            {/* Mobile FAB to switch to list */}
+                            <button 
+                                onClick={() => setView('list')}
+                                className={`md:hidden absolute bottom-6 right-6 z-[1000] bg-white text-green-700 p-3 rounded-full shadow-lg border-2 border-green-100 ${view === 'map' ? 'flex' : 'hidden'}`}
+                            >
+                                <IconTable className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
