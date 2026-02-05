@@ -264,7 +264,10 @@
                             return;
                         }
 
-                        const map = L.map('map-container').setView([13.7563, 100.5018], 11);
+                        // Optimize 1: Use Canvas Renderer for Map
+                        const map = L.map('map-container', {
+                            preferCanvas: true // Critical for performance with thousands of points
+                        }).setView([13.7563, 100.5018], 11);
                         
                         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                             attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -283,31 +286,22 @@
                 if (view === 'map' && mapRef.current && markersLayerRef.current) {
                     markersLayerRef.current.clearLayers();
                     
-                    const displayData = data.slice(0, 2000); // Limit for performance
+                    // Optimize 2: Remove Limit (Canvas can handle it)
+                    const displayData = data; 
 
                     displayData.forEach(item => {
                         const isTree = item.type && item.type.includes('ยืนต้น');
                         const color = isTree ? '#15803d' : '#84cc16'; // Dark green vs Lime
                         
-                        const markerHtml = `
-                            <div style="
-                                background-color: ${color};
-                                width: 10px;
-                                height: 10px;
-                                border-radius: 50%;
-                                border: 1px solid white;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-                            "></div>
-                        `;
-
-                        const icon = L.divIcon({
-                            className: 'custom-dot',
-                            html: markerHtml,
-                            iconSize: [10, 10],
-                            iconAnchor: [5, 5]
+                        // Optimize 3: Use CircleMarker (Vector) instead of HTML Marker (DOM)
+                        const marker = L.circleMarker([item.lat, item.lng], {
+                            radius: 5,
+                            fillColor: color,
+                            color: "#fff",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
                         });
-
-                        const marker = L.marker([item.lat, item.lng], { icon });
                         
                         const popupHtml = `
                             <div style="font-family: 'Sarabun', sans-serif; min-width: 200px;">
