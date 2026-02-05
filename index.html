@@ -3,378 +3,526 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบติดตามการปลูกต้นไม้</title>
+    <title>Bangkok Green Monitor - ระบบติดตามพื้นที่สีเขียว</title>
     
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 1. Load Utilities -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     
-    <!-- React & ReactDOM -->
+    <!-- 2. React Core -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel for JSX -->
+    <!-- 3. Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Leaflet CSS & JS -->
+    <!-- 4. UI Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+    
+    <!-- 5. Map Library -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- PapaParse -->
-    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <!-- 6. Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        body { font-family: 'Sarabun', sans-serif; }
-        /* Custom scrollbar for better look */
-        ::-webkit-scrollbar { width: 6px; }
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f0fdf4; /* Green-50 */
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scroll, handle in app */
+        }
+        
+        #root {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Loading Spinner */
+        #initial-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            background-color: #f0fdf4;
+            color: #166534;
+            font-size: 1.5rem;
+            font-weight: bold;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #bbf7d0;
+            border-top: 4px solid #16a34a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
-        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .leaflet-popup-content { margin: 12px; }
     </style>
-    <!-- Google Font for Thai -->
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
-    <div id="root" class="h-full flex flex-col"></div>
+<body>
+    <!-- Initial Loading State (Removed by React when loaded) -->
+    <div id="root">
+        <div id="initial-loader">
+            <div class="spinner"></div>
+            <div>กำลังโหลดข้อมูล...</div>
+        </div>
+    </div>
 
     <script type="text/babel">
+        // Safe Access to Globals
         const { useState, useEffect, useMemo, useRef } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts || {};
+        const L = window.L;
 
-        // --- Icons (Inline SVG Components) ---
-        const IconSprout = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>;
-        const IconTrees = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 10v.2A3 3 0 0 1 8.9 16v0H5v0h0a3 3 0 0 1-1-5.8V10a3 3 0 0 1 5.3-2.1"/><path d="M7 16v6"/><path d="M13 19v3"/><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .6-1.7L13 3l-1.4 1.5"/></svg>;
-        const IconSearch = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
-        const IconMap = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>;
-        const IconTable = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>;
-        const IconCalendar = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
-        const IconUser = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-        const IconLoader = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+        // --- Configuration ---
+        const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
 
-        // --- Utility: Auto-detect columns ---
-        const detectColumns = (firstRow) => {
-            const keys = Object.keys(firstRow);
-            
-            const latKey = keys.find(k => ['lat', 'latitude', 'ละติจูด', 'latitude (n)'].some(sub => k.toLowerCase().includes(sub)));
-            const lngKey = keys.find(k => ['lng', 'lon', 'long', 'longitude', 'ลองจิจูด', 'longitude (e)'].some(sub => k.toLowerCase().includes(sub)));
-            
-            // Prioritize keys that might be the tree name
-            const nameKey = keys.find(k => ['name', 'tree', 'species', 'plant', 'ชื่อ', 'ชนิด', 'พันธุ์', 'ต้น'].some(sub => k.toLowerCase().includes(sub))) || keys[0];
-            
-            const dateKey = keys.find(k => ['date', 'time', 'วัน', 'เวลา'].some(sub => k.toLowerCase().includes(sub)));
-            const planterKey = keys.find(k => ['by', 'planter', 'owner', 'ผู้ปลูก', 'คนปลูก'].some(sub => k.toLowerCase().includes(sub)));
+        // --- Mock Data ---
+        const INITIAL_DATA = [
+            { id: 12101, district: 'ประเวศ', subdistrict: 'หนองบอน', lat: 13.68753, lng: 100.656281, date: '30/07/2565', name: 'ต้นคูน', type: 'ไม้ยืนต้น', quantity: 1, image: '' },
+            { id: 1983101, district: 'พระนคร', subdistrict: 'สำราญราษฎร์', lat: 13.750815, lng: 100.504784, date: '03/02/2026', name: 'ไทรเกาหลี', type: 'ไม้พุ่ม', quantity: 840, image: 'https://tree.bangkok.go.th/media/tree_items/EPB2xRRzFUZne5DULUSo6o.jpg' },
+            { id: 1729806, district: 'บางกอกใหญ่', subdistrict: 'วัดท่าพระ', lat: 13.730381, lng: 100.470842, date: '01/02/1980', name: 'ตะขบบ้าน', type: 'ไม้ยืนต้น', quantity: 1, image: 'https://tree.bangkok.go.th/media/tree_items/BUAMZBKQWXZBLCGGNJVOKZAOCPLE.jpg' },
+            { id: 1729807, district: 'บางกอกใหญ่', subdistrict: 'วัดท่าพระ', lat: 13.730381, lng: 100.470842, date: '01/02/1980', name: 'หูกวาง', type: 'ไม้ยืนต้น', quantity: 1, image: 'https://tree.bangkok.go.th/media/tree_items/ALIMGJEENAGIUUWZQMDFENQHGSUU.jpg' },
+            { id: 11111, district: 'จตุจักร', subdistrict: 'ลาดยาว', lat: 13.8282, lng: 100.5591, date: '15/01/2026', name: 'ราชพฤกษ์', type: 'ไม้ยืนต้น', quantity: 20, image: '' },
+            { id: 22222, district: 'ปทุมวัน', subdistrict: 'ลุมพินี', lat: 13.7300, lng: 100.5400, date: '20/01/2026', name: 'จามจุรี', type: 'ไม้ยืนต้น', quantity: 5, image: '' },
+            { id: 33333, district: 'บางรัก', subdistrict: 'สีลม', lat: 13.7200, lng: 100.5200, date: '25/01/2026', name: 'ทองกวาว', type: 'ไม้ยืนต้น', quantity: 12, image: '' },
+            { id: 44444, district: 'พญาไท', subdistrict: 'สามเสนใน', lat: 13.7800, lng: 100.5400, date: '28/01/2026', name: 'ประดู่', type: 'ไม้ยืนต้น', quantity: 8, image: '' },
+        ];
 
-            return { latKey, lngKey, nameKey, dateKey, planterKey };
-        };
+        const COLORS = ['#16a34a', '#84cc16', '#22c55e', '#15803d', '#4ade80', '#14532d', '#3f6212', '#65a30d'];
 
-        // --- Component: MapView (Using raw Leaflet to avoid dependency issues) ---
-        function MapView({ data, center, onMarkerClick, columns }) {
+        // --- Icons (SVG Components) ---
+        const IconTree = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 10v.2A3 3 0 0 1 8.9 16v0H5v0h0a3 3 0 0 1-1-5.8V10a3 3 0 0 1 5.3-2.1"/><path d="M7 16v6"/><path d="M13 19v3"/><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .9-1.7l-2-6a1 1 0 0 0-1.9 0l-2 6a1 1 0 0 0 .9 1.7h.2l-2 3.3a1 1 0 0 0 .7 1.7H13z"/></svg>;
+        const IconMap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>;
+        const IconBarChart = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>;
+        const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
+        const IconCloudDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>;
+
+        const App = () => {
+            const [data, setData] = useState(INITIAL_DATA);
+            const [view, setView] = useState('dashboard'); // 'dashboard' | 'map'
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            // Leaflet Refs
             const mapRef = useRef(null);
-            const mapInstanceRef = useRef(null);
-            const markersRef = useRef([]);
+            const markersLayerRef = useRef(null);
 
-            // Init Map
-            useEffect(() => {
-                if (!mapRef.current) return;
-                
-                if (!mapInstanceRef.current) {
-                    mapInstanceRef.current = L.map(mapRef.current).setView(center, 12);
+            // --- Stats Logic ---
+            const stats = useMemo(() => {
+                try {
+                    const totalTrees = data.reduce((acc, curr) => acc + (parseInt(curr.quantity) || 0), 0);
+                    const districtCounts = {};
+                    const typeCounts = {};
+
+                    data.forEach(item => {
+                        const dist = item.district ? item.district.trim() : 'ไม่ระบุ';
+                        districtCounts[dist] = (districtCounts[dist] || 0) + (parseInt(item.quantity) || 0);
+                        
+                        const t = item.type ? item.type.trim() : 'อื่นๆ';
+                        typeCounts[t] = (typeCounts[t] || 0) + (parseInt(item.quantity) || 0);
+                    });
+
+                    const topDistrict = Object.entries(districtCounts).sort((a, b) => b[1] - a[1])[0] || ['-', 0];
+                    const chartDataDistrict = Object.keys(districtCounts)
+                        .map(k => ({ name: k, value: districtCounts[k] }))
+                        .sort((a,b) => b.value - a.value)
+                        .slice(0, 10);
                     
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; OpenStreetMap contributors'
-                    }).addTo(mapInstanceRef.current);
+                    const chartDataType = Object.keys(typeCounts)
+                        .map(k => ({ name: k, value: typeCounts[k] }))
+                        .filter(item => item.value > 0);
+
+                    return { totalTrees, topDistrict, chartDataDistrict, chartDataType, totalRecords: data.length };
+                } catch (err) {
+                    console.error("Error calculating stats:", err);
+                    return { totalTrees: 0, topDistrict: ['-',0], chartDataDistrict: [], chartDataType: [], totalRecords: 0 };
+                }
+            }, [data]);
+
+            // --- Fetch Public Sheet Handler ---
+            const handleFetchPublicSheet = () => {
+                setLoading(true);
+                setError(null);
+
+                Papa.parse(PUBLIC_SHEET_URL, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        try {
+                            const parsedData = results.data.map((row, index) => ({
+                                id: index,
+                                district: row['เขต'],
+                                subdistrict: row['แขวง'],
+                                lat: parseFloat(row['latitude']),
+                                lng: parseFloat(row['longitude']),
+                                date: row['วันที่ปลูก'],
+                                name: row['ชื่อต้นไม้ที่ปลูก'],
+                                type: row['ประเภทต้นไม้ที่ปลูก'],
+                                quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
+                                image: row['รูปของต้นไม้ที่ปลูก']
+                            })).filter(item => 
+                                !isNaN(item.lat) && 
+                                !isNaN(item.lng) && 
+                                item.lat !== 0 && 
+                                item.lng !== 0
+                            );
+
+                            if (parsedData.length > 0) {
+                                setData(parsedData);
+                                setError(null);
+                            } else {
+                                setError("ไม่พบข้อมูลพิกัดในลิงก์ Google Sheet");
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            setError("เกิดข้อผิดพลาดในการประมวลผลข้อมูลจาก Google Sheet");
+                        }
+                        setLoading(false);
+                    },
+                    error: (err) => {
+                        console.error(err);
+                        setError("ไม่สามารถดึงข้อมูลได้ (โปรดตรวจสอบอินเทอร์เน็ตหรือลิงก์ต้นทาง)");
+                        setLoading(false);
+                    }
+                });
+            };
+
+            // --- File Handler ---
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                setLoading(true);
+                setError(null);
+
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        try {
+                            const parsedData = results.data.map((row, index) => ({
+                                id: index,
+                                district: row['เขต'],
+                                subdistrict: row['แขวง'],
+                                lat: parseFloat(row['latitude']),
+                                lng: parseFloat(row['longitude']),
+                                date: row['วันที่ปลูก'],
+                                name: row['ชื่อต้นไม้ที่ปลูก'],
+                                type: row['ประเภทต้นไม้ที่ปลูก'],
+                                quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
+                                image: row['รูปของต้นไม้ที่ปลูก']
+                            })).filter(item => 
+                                !isNaN(item.lat) && 
+                                !isNaN(item.lng) && 
+                                item.lat !== 0 && 
+                                item.lng !== 0
+                            );
+
+                            if (parsedData.length === 0) {
+                                setError("ไม่พบข้อมูลพิกัดในไฟล์ หรือรูปแบบไฟล์ไม่ถูกต้อง");
+                            } else {
+                                setData(parsedData);
+                            }
+                        } catch (err) {
+                            setError("เกิดข้อผิดพลาดในการประมวลผลไฟล์");
+                            console.error(err);
+                        }
+                        setLoading(false);
+                    },
+                    error: (err) => {
+                        setError("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV");
+                        setLoading(false);
+                    }
+                });
+            };
+
+            // --- Map Initialization ---
+            useEffect(() => {
+                if (view === 'map' && !mapRef.current) {
+                    try {
+                        if (!L) {
+                            console.error("Leaflet (L) is not defined");
+                            return;
+                        }
+
+                        const map = L.map('map-container').setView([13.7563, 100.5018], 11);
+                        
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                            attribution: '&copy; OpenStreetMap &copy; CARTO',
+                            subdomains: 'abcd',
+                            maxZoom: 19
+                        }).addTo(map);
+
+                        markersLayerRef.current = L.layerGroup().addTo(map);
+                        mapRef.current = map;
+                    } catch (err) {
+                        console.error("Error initializing map:", err);
+                    }
+                }
+
+                // Update Markers
+                if (view === 'map' && mapRef.current && markersLayerRef.current) {
+                    markersLayerRef.current.clearLayers();
+                    
+                    const displayData = data.slice(0, 2000); // Limit for performance
+
+                    displayData.forEach(item => {
+                        const isTree = item.type && item.type.includes('ยืนต้น');
+                        const color = isTree ? '#15803d' : '#84cc16'; // Dark green vs Lime
+                        
+                        const markerHtml = `
+                            <div style="
+                                background-color: ${color};
+                                width: 10px;
+                                height: 10px;
+                                border-radius: 50%;
+                                border: 1px solid white;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+                            "></div>
+                        `;
+
+                        const icon = L.divIcon({
+                            className: 'custom-dot',
+                            html: markerHtml,
+                            iconSize: [10, 10],
+                            iconAnchor: [5, 5]
+                        });
+
+                        const marker = L.marker([item.lat, item.lng], { icon });
+                        
+                        const popupHtml = `
+                            <div style="font-family: 'Sarabun', sans-serif; min-width: 200px;">
+                                <h3 style="margin:0 0 5px 0; color:#15803d; font-weight:bold;">${item.name || 'ไม่ระบุชื่อ'}</h3>
+                                <div style="color:#666; font-size:0.9em; margin-bottom:5px;">${item.district} ${item.subdistrict ? '('+item.subdistrict+')' : ''}</div>
+                                ${item.image && item.image.startsWith('http') 
+                                    ? `<div style="width:100%; height:120px; background:#f0f0f0; border-radius:4px; overflow:hidden; margin-bottom:5px;">
+                                         <img src="${item.image}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'" />
+                                       </div>` 
+                                    : ''}
+                                <div style="font-size:0.85em; display:grid; grid-template-columns: auto 1fr; gap: 4px;">
+                                    <strong>ประเภท:</strong> <span>${item.type}</span>
+                                    <strong>จำนวน:</strong> <span>${item.quantity} ต้น</span>
+                                    <strong>วันที่:</strong> <span>${item.date}</span>
+                                </div>
+                            </div>
+                        `;
+
+                        marker.bindPopup(popupHtml);
+                        markersLayerRef.current.addLayer(marker);
+                    });
                 }
 
                 return () => {
-                    // Cleanup handled by logic below, typically we keep map instance alive
-                };
-            }, []);
-
-            // Update Markers
-            useEffect(() => {
-                const map = mapInstanceRef.current;
-                if (!map) return;
-
-                // Clear old markers
-                markersRef.current.forEach(marker => marker.remove());
-                markersRef.current = [];
-
-                // Custom Icon
-                const iconScale = 0.7;
-                const customIcon = new L.Icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers/marker-icon-2x-green.png',
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25 * iconScale, 41 * iconScale],
-                    iconAnchor: [12 * iconScale, 41 * iconScale],
-                    popupAnchor: [1, -34 * iconScale],
-                    shadowSize: [41 * iconScale, 41 * iconScale]
-                });
-
-                data.forEach(tree => {
-                    const marker = L.marker([tree._lat, tree._lng], { icon: customIcon })
-                        .addTo(map);
-
-                    // Create Popup Content
-                    const popupContent = document.createElement('div');
-                    popupContent.className = 'p-1 min-w-[200px]';
-                    
-                    let details = '';
-                    Object.entries(tree).forEach(([key, val]) => {
-                        if (key.startsWith('_') || key === columns.nameKey || !val) return;
-                        details += `
-                            <div class="flex justify-between border-b border-dotted border-gray-200 pb-1 mb-1 last:border-0">
-                                <span class="font-medium text-gray-500 mr-2 text-sm">${key}:</span>
-                                <span class="text-gray-800 text-right text-sm">${val}</span>
-                            </div>
-                        `;
-                    });
-
-                    popupContent.innerHTML = `
-                        <h3 class="font-bold text-lg text-green-700 mb-2">${tree[columns.nameKey] || 'ไม่ระบุชื่อ'}</h3>
-                        <div class="space-y-1">${details}</div>
-                    `;
-
-                    marker.bindPopup(popupContent);
-                    markersRef.current.push(marker);
-                });
-
-            }, [data, columns]);
-
-            // Fly to center
-            useEffect(() => {
-                if (mapInstanceRef.current && center) {
-                    mapInstanceRef.current.flyTo(center, 14, { duration: 1.5 });
-                }
-            }, [center]);
-
-            return <div ref={mapRef} className="w-full h-full z-10" />;
-        }
-
-        // --- Main App ---
-        function App() {
-            const [data, setData] = useState([]);
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [view, setView] = useState('dashboard'); // dashboard, list
-            const [searchTerm, setSearchTerm] = useState('');
-            const [columns, setColumns] = useState({});
-            const [mapCenter, setMapCenter] = useState([13.7563, 100.5018]);
-
-            const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
-
-            useEffect(() => {
-                const fetchData = async () => {
-                    try {
-                        let csvText = '';
-                        
-                        // Step 1: Try fetching directly (Works if CORS allows)
-                        try {
-                            const response = await fetch(CSV_URL);
-                            if (!response.ok) throw new Error('Network response was not ok');
-                            csvText = await response.text();
-                        } catch (directError) {
-                            console.warn("Direct fetch failed, attempting proxy fallback...", directError);
-                            
-                            // Step 2: Fallback to CORS Proxy (Useful for local file://)
-                            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}`;
-                            const response = await fetch(proxyUrl);
-                            if (!response.ok) throw new Error('Failed to load via proxy');
-                            csvText = await response.text();
-                        }
-
-                        // Step 3: Parse CSV
-                        Papa.parse(csvText, {
-                            header: true,
-                            skipEmptyLines: true,
-                            complete: (results) => {
-                                if (results.data && results.data.length > 0) {
-                                    const detected = detectColumns(results.data[0]);
-                                    setColumns(detected);
-                                    
-                                    // Process
-                                    const validData = results.data.filter(row => {
-                                        const lat = parseFloat(row[detected.latKey]);
-                                        const lng = parseFloat(row[detected.lngKey]);
-                                        return !isNaN(lat) && !isNaN(lng);
-                                    }).map((row, index) => ({
-                                        ...row,
-                                        _id: index,
-                                        _lat: parseFloat(row[detected.latKey]),
-                                        _lng: parseFloat(row[detected.lngKey])
-                                    }));
-
-                                    setData(validData);
-                                    if (validData.length > 0) {
-                                        setMapCenter([validData[0]._lat, validData[0]._lng]);
-                                    }
-                                }
-                                setLoading(false);
-                            },
-                            error: (err) => {
-                                setError("CSV Parse Error: " + (err.message || "Invalid CSV format"));
-                                setLoading(false);
-                            }
-                        });
-                    } catch (err) {
-                        // Detailed error message
-                        setError("ไม่สามารถโหลดข้อมูลได้ (อาจเป็นเพราะ Link หรือ Internet): " + err.message);
-                        setLoading(false);
+                    if (view !== 'map' && mapRef.current) {
+                        mapRef.current.remove();
+                        mapRef.current = null;
+                        markersLayerRef.current = null;
                     }
                 };
-
-                fetchData();
-            }, []);
-
-            const filteredData = useMemo(() => {
-                return data.filter(item => {
-                    if (!searchTerm) return true;
-                    const searchLower = searchTerm.toLowerCase();
-                    return Object.values(item).some(val => 
-                        String(val).toLowerCase().includes(searchLower)
-                    );
-                });
-            }, [data, searchTerm]);
-
-            const stats = useMemo(() => {
-                return {
-                    total: data.length,
-                    uniqueSpecies: new Set(data.map(d => d[columns.nameKey])).size,
-                };
-            }, [data, columns]);
-
-            if (loading) return (
-                <div className="flex flex-col items-center justify-center h-screen bg-green-50 text-green-800">
-                    <IconLoader className="w-12 h-12 animate-spin mb-4" />
-                    <p className="text-lg font-medium">กำลังโหลดข้อมูลการปลูกต้นไม้...</p>
-                </div>
-            );
-
-            if (error) return (
-                <div className="flex items-center justify-center h-screen bg-red-50 text-red-800 p-8">
-                    <div className="text-center max-w-md bg-white p-6 rounded-xl shadow-lg border border-red-100">
-                        <div className="bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <h2 className="text-xl font-bold mb-2 text-gray-900">เกิดข้อผิดพลาด</h2>
-                        <p className="text-sm text-gray-600 mb-4">{error}</p>
-                        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">
-                            ลองใหม่
-                        </button>
-                    </div>
-                </div>
-            );
+            }, [view, data]);
 
             return (
-                <div className="h-full flex flex-col font-sans">
-                    {/* Header */}
-                    <header className="bg-green-700 text-white shadow-lg sticky top-0 z-50 shrink-0">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                                <IconSprout className="w-8 h-8 text-green-300" />
-                                <h1 className="text-xl font-bold tracking-tight">Tree Tracker</h1>
+                <div className="flex h-screen overflow-hidden bg-green-50 text-gray-800 font-sans">
+                    
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-white shadow-xl flex-shrink-0 flex flex-col z-20 hidden md:flex">
+                        <div className="p-6 border-b border-green-100 flex items-center gap-3">
+                            <div className="bg-green-600 text-white p-2 rounded-lg shadow-sm">
+                                <IconTree />
                             </div>
-                            <div className="hidden md:flex space-x-4 text-sm font-medium">
-                                <div className="bg-green-800 px-3 py-1 rounded-full flex items-center space-x-2">
-                                    <IconTrees className="w-4 h-4" />
-                                    <span>ทั้งหมด: {stats.total} ต้น</span>
-                                </div>
-                            </div>
+                            <h1 className="font-bold text-lg text-green-900 leading-tight">Bangkok<br/>Green Monitor</h1>
                         </div>
-                    </header>
+
+                        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+                            <button 
+                                onClick={() => setView('dashboard')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${view === 'dashboard' ? 'bg-green-100 text-green-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                <IconBarChart /> ภาพรวมข้อมูล
+                            </button>
+                            <button 
+                                onClick={() => setView('map')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${view === 'map' ? 'bg-green-100 text-green-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                <IconMap /> แผนที่พิกัด
+                            </button>
+
+                            <div className="mt-6 px-4">
+                                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">แหล่งข้อมูล</div>
+                                
+                                {/* Public Sheet Button */}
+                                <button 
+                                    onClick={handleFetchPublicSheet}
+                                    disabled={loading}
+                                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 p-3 rounded-lg border border-blue-200 flex items-center gap-3 transition-colors mb-3 group"
+                                >
+                                    <div className="bg-blue-100 group-hover:bg-white p-1.5 rounded transition-colors">
+                                        <IconCloudDownload size={18} />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="text-xs font-bold">โหลดข้อมูลจาก Google Sheet</div>
+                                        <div className="text-[10px] opacity-75">อัปเดตล่าสุดจากลิงก์สาธารณะ</div>
+                                    </div>
+                                </button>
+
+                                <div className="text-center text-gray-400 text-xs my-2">- หรือ -</div>
+
+                                {/* CSV Upload */}
+                                <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-green-300 border-dashed rounded-lg cursor-pointer hover:bg-green-50 transition-colors bg-white">
+                                    <div className="flex flex-col items-center justify-center pt-2 pb-2">
+                                        <IconUpload size={16} className="text-green-500"/>
+                                        <p className="text-[10px] text-gray-500 font-medium mt-1">อัปโหลดไฟล์ CSV</p>
+                                    </div>
+                                    <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                                </label>
+                            </div>
+                        </nav>
+                    </aside>
+
+                    {/* Mobile Header */}
+                    <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white shadow-md z-30 flex items-center justify-between px-4">
+                        <div className="font-bold text-green-800 flex items-center gap-2">
+                             <IconTree /> Green Monitor
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setView('dashboard')} className={`p-2 rounded ${view === 'dashboard' ? 'bg-green-100' : ''}`}><IconBarChart /></button>
+                            <button onClick={() => setView('map')} className={`p-2 rounded ${view === 'map' ? 'bg-green-100' : ''}`}><IconMap /></button>
+                        </div>
+                    </div>
 
                     {/* Main Content */}
-                    <main className="flex-1 flex flex-col md:flex-row h-full overflow-hidden relative">
-                        
-                        {/* Sidebar / List View */}
-                        <div className={`flex flex-col w-full md:w-1/3 lg:w-96 bg-white shadow-xl z-20 transition-all duration-300 absolute md:relative h-full ${view === 'map' ? 'translate-y-full md:translate-y-0 hidden md:flex' : 'translate-y-0 flex'}`}>
-                            
-                            {/* Search */}
-                            <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
-                                <div className="relative mb-4">
-                                    <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <input 
-                                        type="text"
-                                        placeholder="ค้นหาชื่อ, สถานที่..."
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-sm"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                    <main className="flex-1 flex flex-col overflow-hidden relative pt-16 md:pt-0">
+                        {loading && (
+                            <div className="absolute inset-0 bg-white/80 z-50 flex items-center justify-center backdrop-blur-sm">
+                                <div className="flex flex-col items-center gap-3">
+                                    <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+                                    <span className="text-green-800 font-semibold">กำลังดึงข้อมูล...</span>
                                 </div>
-                                
-                                <div className="grid grid-cols-2 gap-2 md:hidden">
-                                     <button onClick={() => setView('list')} className={`flex items-center justify-center py-2 rounded-md text-sm font-medium ${view === 'list' ? 'bg-green-100 text-green-700' : 'bg-white text-gray-600 border'}`}>
-                                        <IconTable className="w-4 h-4 mr-2" /> รายการ
-                                    </button>
-                                    <button onClick={() => setView('map')} className={`flex items-center justify-center py-2 rounded-md text-sm font-medium ${view === 'map' ? 'bg-green-100 text-green-700' : 'bg-white text-gray-600 border'}`}>
-                                        <IconMap className="w-4 h-4 mr-2" /> แผนที่
-                                    </button>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="m-4 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-center justify-between shadow-sm">
+                                <span className="text-sm">{error}</span>
+                                <button onClick={() => setError(null)} className="font-bold hover:text-red-900">✕</button>
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+                            
+                            {/* Stats Header */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500 transform hover:scale-105 transition-transform duration-200">
+                                    <h3 className="text-gray-500 text-sm font-medium">ต้นไม้ทั้งหมด</h3>
+                                    <p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalTrees.toLocaleString()}</p>
+                                </div>
+                                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-lime-500 transform hover:scale-105 transition-transform duration-200">
+                                    <h3 className="text-gray-500 text-sm font-medium">เขตที่ปลูกมากสุด</h3>
+                                    <p className="text-3xl font-bold text-gray-800 mt-1">{stats.topDistrict[0]}</p>
+                                    <p className="text-xs text-gray-400">จำนวน {stats.topDistrict[1].toLocaleString()} ต้น</p>
+                                </div>
+                                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-emerald-500 transform hover:scale-105 transition-transform duration-200">
+                                    <h3 className="text-gray-500 text-sm font-medium">จุดพิกัดทั้งหมด</h3>
+                                    <p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalRecords.toLocaleString()}</p>
                                 </div>
                             </div>
 
-                            {/* Data List */}
-                            <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-100 pb-20 md:pb-2">
-                                {filteredData.length === 0 ? (
-                                    <div className="text-center py-10 text-gray-500">
-                                        <p>ไม่พบข้อมูล</p>
-                                    </div>
-                                ) : (
-                                    filteredData.map((tree) => (
-                                        <div 
-                                            key={tree._id}
-                                            onClick={() => {
-                                                setMapCenter([tree._lat, tree._lng]);
-                                                if(window.innerWidth < 768) setView('map');
-                                            }}
-                                            className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md cursor-pointer border-l-4 border-green-500 transition-all hover:bg-green-50 group"
-                                        >
-                                            <h3 className="font-bold text-gray-800 text-lg group-hover:text-green-700">{tree[columns.nameKey] || "ไม่ระบุชื่อ"}</h3>
-                                            
-                                            <div className="mt-2 text-sm text-gray-600 space-y-1">
-                                                {columns.dateKey && tree[columns.dateKey] && (
-                                                    <div className="flex items-center">
-                                                        <IconCalendar className="w-4 h-4 mr-2 text-green-600" />
-                                                        {tree[columns.dateKey]}
-                                                    </div>
-                                                )}
-                                                {columns.planterKey && tree[columns.planterKey] && (
-                                                    <div className="flex items-center">
-                                                        <IconUser className="w-4 h-4 mr-2 text-green-600" />
-                                                        {tree[columns.planterKey]}
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center text-xs text-gray-400 mt-2">
-                                                    <IconMap className="w-3 h-3 mr-1" />
-                                                    {tree._lat.toFixed(5)}, {tree._lng.toFixed(5)}
-                                                </div>
-                                            </div>
+                            {/* View Content */}
+                            {view === 'dashboard' ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
+                                    {/* Bar Chart */}
+                                    <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
+                                        <h3 className="text-lg font-bold text-gray-700 mb-4">10 อันดับเขตที่มีการปลูกต้นไม้</h3>
+                                        <div className="h-[350px]">
+                                            {window.Recharts ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={stats.chartDataDistrict} layout="vertical" margin={{left: 40}}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                        <XAxis type="number" />
+                                                        <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
+                                                        <Tooltip />
+                                                        <Bar dataKey="value" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={24} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            ) : (
+                                                <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>
+                                            )}
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
+                                    </div>
 
-                        {/* Map Container */}
-                        <div className={`flex-1 h-full relative ${view === 'list' ? 'hidden md:block' : 'block'}`}>
-                            <MapView 
-                                data={filteredData} 
-                                center={mapCenter} 
-                                columns={columns}
-                            />
-                            
-                            {/* Mobile FAB to switch to list */}
-                            <button 
-                                onClick={() => setView('list')}
-                                className={`md:hidden absolute bottom-6 right-6 z-[1000] bg-white text-green-700 p-3 rounded-full shadow-lg border-2 border-green-100 ${view === 'map' ? 'flex' : 'hidden'}`}
-                            >
-                                <IconTable className="w-6 h-6" />
-                            </button>
+                                    {/* Pie Chart */}
+                                    <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
+                                        <h3 className="text-lg font-bold text-gray-700 mb-4">สัดส่วนประเภทต้นไม้</h3>
+                                        <div className="h-[350px]">
+                                            {window.Recharts ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={stats.chartDataType}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={80}
+                                                            outerRadius={120}
+                                                            paddingAngle={5}
+                                                            dataKey="value"
+                                                        >
+                                                            {stats.chartDataType.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip />
+                                                        <Legend verticalAlign="bottom" height={36}/>
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            ) : (
+                                                <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Map View */
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] relative">
+                                    <div id="map-container" className="w-full h-full bg-gray-100"></div>
+                                    
+                                    {/* Map Legend */}
+                                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur px-4 py-3 rounded-lg shadow-lg z-[1000] text-sm border border-gray-100">
+                                        <div className="font-bold mb-2 text-gray-700">สัญลักษณ์</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="w-3 h-3 rounded-full bg-green-700 border border-white shadow-sm"></span>
+                                            <span>ไม้ยืนต้น</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-lime-500 border border-white shadow-sm"></span>
+                                            <span>ไม้พุ่ม/อื่นๆ</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </main>
                 </div>
             );
-        }
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
