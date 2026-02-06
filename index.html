@@ -277,6 +277,14 @@
 
                         markersLayerRef.current = L.layerGroup().addTo(map);
                         mapRef.current = map;
+
+                        // FIX: Force map to calculate size after render to prevent "grey tiles" or partial rendering
+                        setTimeout(() => {
+                            if (mapRef.current) {
+                                mapRef.current.invalidateSize();
+                            }
+                        }, 250);
+
                     } catch (err) {
                         console.error("Error initializing map:", err);
                     }
@@ -495,7 +503,8 @@
                                 </div>
                             ) : (
                                 /* Map View */
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] relative">
+                                /* Modified height to use calc(100vh - header/stats) for fuller frame */
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[calc(100vh-250px)] min-h-[500px] relative">
                                     <div id="map-container" className="w-full h-full bg-gray-100"></div>
                                     
                                     {/* Map Legend */}
