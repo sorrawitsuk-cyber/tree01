@@ -116,15 +116,98 @@
         const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
         const IconCloudDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>;
 
+        // --- New Isolated Map Component ---
+        // This component handles the Map lifecycle independently. 
+        // When it unmounts (user switches view), the map is guaranteed to be destroyed.
+        const MapComponent = ({ data }) => {
+            const mapContainerRef = useRef(null);
+            const mapInstanceRef = useRef(null);
+            const markersLayerRef = useRef(null);
+
+            useEffect(() => {
+                if (!L || !mapContainerRef.current) return;
+
+                // 1. Initialize Map
+                const map = L.map(mapContainerRef.current, {
+                    preferCanvas: true // Performance optimization
+                }).setView([13.7563, 100.5018], 11);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    subdomains: 'abcd',
+                    maxZoom: 19
+                }).addTo(map);
+
+                markersLayerRef.current = L.layerGroup().addTo(map);
+                mapInstanceRef.current = map;
+
+                // 2. Add Markers (Using data prop)
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        const isTree = item.type && item.type.includes('ยืนต้น');
+                        const color = isTree ? '#15803d' : '#84cc16'; // Dark green vs Lime
+                        
+                        const marker = L.circleMarker([item.lat, item.lng], {
+                            radius: 5,
+                            fillColor: color,
+                            color: "#fff",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                        
+                        const popupHtml = `
+                            <div style="font-family: 'Sarabun', sans-serif; min-width: 200px;">
+                                <h3 style="margin:0 0 5px 0; color:#15803d; font-weight:bold;">${item.name || 'ไม่ระบุชื่อ'}</h3>
+                                <div style="color:#666; font-size:0.9em; margin-bottom:5px;">${item.district} ${item.subdistrict ? '('+item.subdistrict+')' : ''}</div>
+                                ${item.image && item.image.startsWith('http') 
+                                    ? `<div style="width:100%; height:120px; background:#f0f0f0; border-radius:4px; overflow:hidden; margin-bottom:5px;">
+                                         <img src="${item.image}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'" />
+                                       </div>` 
+                                    : ''}
+                                <div style="font-size:0.85em; display:grid; grid-template-columns: auto 1fr; gap: 4px;">
+                                    <strong>ประเภท:</strong> <span>${item.type}</span>
+                                    <strong>จำนวน:</strong> <span>${item.quantity} ต้น</span>
+                                    <strong>วันที่:</strong> <span>${item.date}</span>
+                                </div>
+                            </div>
+                        `;
+                        marker.bindPopup(popupHtml);
+                        markersLayerRef.current.addLayer(marker);
+                    });
+
+                    // Auto fit bounds if data exists
+                    /* const group = L.featureGroup(markersLayerRef.current.getLayers());
+                    if (group.getLayers().length > 0) {
+                        map.fitBounds(group.getBounds());
+                    }
+                    */
+                }
+
+                // Force resize to fix "grey tiles" issue
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 250);
+
+                // 3. Cleanup Function (Crucial for fixing "stuck dots")
+                return () => {
+                    if (mapInstanceRef.current) {
+                        mapInstanceRef.current.remove();
+                        mapInstanceRef.current = null;
+                        markersLayerRef.current = null;
+                    }
+                };
+            }, [data]); // Re-run only if data changes completely (or mount/unmount)
+
+            return <div ref={mapContainerRef} className="w-full h-full bg-gray-100 rounded-lg"></div>;
+        };
+
+
         const App = () => {
             const [data, setData] = useState(INITIAL_DATA);
             const [view, setView] = useState('dashboard'); // 'dashboard' | 'map'
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
-
-            // Leaflet Refs
-            const mapRef = useRef(null);
-            const markersLayerRef = useRef(null);
 
             // --- Stats Logic ---
             const stats = useMemo(() => {
@@ -254,93 +337,6 @@
                     }
                 });
             };
-
-            // --- Map Initialization ---
-            useEffect(() => {
-                if (view === 'map' && !mapRef.current) {
-                    try {
-                        if (!L) {
-                            console.error("Leaflet (L) is not defined");
-                            return;
-                        }
-
-                        // Optimize 1: Use Canvas Renderer for Map
-                        const map = L.map('map-container', {
-                            preferCanvas: true // Critical for performance with thousands of points
-                        }).setView([13.7563, 100.5018], 11);
-                        
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                            attribution: '&copy; OpenStreetMap &copy; CARTO',
-                            subdomains: 'abcd',
-                            maxZoom: 19
-                        }).addTo(map);
-
-                        markersLayerRef.current = L.layerGroup().addTo(map);
-                        mapRef.current = map;
-
-                        // FIX: Force map to calculate size after render to prevent "grey tiles" or partial rendering
-                        setTimeout(() => {
-                            if (mapRef.current) {
-                                mapRef.current.invalidateSize();
-                            }
-                        }, 250);
-
-                    } catch (err) {
-                        console.error("Error initializing map:", err);
-                    }
-                }
-
-                // Update Markers
-                if (view === 'map' && mapRef.current && markersLayerRef.current) {
-                    markersLayerRef.current.clearLayers();
-                    
-                    // Optimize 2: Remove Limit (Canvas can handle it)
-                    const displayData = data; 
-
-                    displayData.forEach(item => {
-                        const isTree = item.type && item.type.includes('ยืนต้น');
-                        const color = isTree ? '#15803d' : '#84cc16'; // Dark green vs Lime
-                        
-                        // Optimize 3: Use CircleMarker (Vector) instead of HTML Marker (DOM)
-                        const marker = L.circleMarker([item.lat, item.lng], {
-                            radius: 5,
-                            fillColor: color,
-                            color: "#fff",
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
-                        
-                        const popupHtml = `
-                            <div style="font-family: 'Sarabun', sans-serif; min-width: 200px;">
-                                <h3 style="margin:0 0 5px 0; color:#15803d; font-weight:bold;">${item.name || 'ไม่ระบุชื่อ'}</h3>
-                                <div style="color:#666; font-size:0.9em; margin-bottom:5px;">${item.district} ${item.subdistrict ? '('+item.subdistrict+')' : ''}</div>
-                                ${item.image && item.image.startsWith('http') 
-                                    ? `<div style="width:100%; height:120px; background:#f0f0f0; border-radius:4px; overflow:hidden; margin-bottom:5px;">
-                                         <img src="${item.image}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'" />
-                                       </div>` 
-                                    : ''}
-                                <div style="font-size:0.85em; display:grid; grid-template-columns: auto 1fr; gap: 4px;">
-                                    <strong>ประเภท:</strong> <span>${item.type}</span>
-                                    <strong>จำนวน:</strong> <span>${item.quantity} ต้น</span>
-                                    <strong>วันที่:</strong> <span>${item.date}</span>
-                                </div>
-                            </div>
-                        `;
-
-                        marker.bindPopup(popupHtml);
-                        markersLayerRef.current.addLayer(marker);
-                    });
-                }
-
-                return () => {
-                    if (view !== 'map' && mapRef.current) {
-                        mapRef.current.remove();
-                        mapRef.current = null;
-                        markersLayerRef.current = null;
-                    }
-                };
-            }, [view, data]);
 
             return (
                 <div className="flex h-screen overflow-hidden bg-green-50 text-gray-800 font-sans">
@@ -503,9 +499,8 @@
                                 </div>
                             ) : (
                                 /* Map View */
-                                /* Modified height to use calc(100vh - header/stats) for fuller frame */
                                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[calc(100vh-250px)] min-h-[500px] relative">
-                                    <div id="map-container" className="w-full h-full bg-gray-100"></div>
+                                    <MapComponent data={data} />
                                     
                                     {/* Map Legend */}
                                     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur px-4 py-3 rounded-lg shadow-lg z-[1000] text-sm border border-gray-100">
