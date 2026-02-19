@@ -71,21 +71,20 @@
         }
 
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* Map specific fix */
         .leaflet-container {
             width: 100%;
             height: 100%;
             z-index: 1;
+            background: #e5e7eb; /* Fallback color */
         }
     </style>
 </head>
 <body>
-    <!-- Initial Loading State -->
     <div id="root">
         <div id="initial-loader">
             <div class="spinner"></div>
@@ -101,6 +100,9 @@
 
         // --- Configuration ---
         const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
+        
+        // Bangkok Bounds (approx)
+        const BANGKOK_BOUNDS = [[13.49, 100.32], [13.96, 100.93]];
 
         // --- Mock Data ---
         const INITIAL_DATA = [
@@ -135,27 +137,23 @@
             return new Date(year, month, day).getTime();
         };
 
-        // --- Map Component with Filters & Zoom ---
-        const MapComponent = ({ data, focusLocation, districtList, typeList }) => {
+        // --- Map Component ---
+        const MapComponent = ({ data, focusLocation }) => {
             const mapContainerRef = useRef(null);
             const mapInstanceRef = useRef(null);
             const markersLayerRef = useRef(null);
             
-            // Map Filters State
-            const [mapFilterDistrict, setMapFilterDistrict] = useState('all');
-            const [mapFilterType, setMapFilterType] = useState('all');
-
             // Initialize Map
             useEffect(() => {
-                if (!L || !mapContainerRef.current) return;
-                
-                // Prevent re-initialization
-                if (mapInstanceRef.current) return;
+                if (!L || !mapContainerRef.current || mapInstanceRef.current) return;
 
                 const map = L.map(mapContainerRef.current, {
                     preferCanvas: true,
-                    zoomControl: false // We will add it manually or let user scroll
-                }).setView([13.7563, 100.5018], 11);
+                    zoomControl: false // Move to bottom right manually
+                });
+                
+                // Set bounds to Bangkok
+                map.fitBounds(BANGKOK_BOUNDS);
                 
                 L.control.zoom({
                     position: 'bottomright'
@@ -170,9 +168,6 @@
                 markersLayerRef.current = L.layerGroup().addTo(map);
                 mapInstanceRef.current = map;
 
-                // Force resize
-                setTimeout(() => map.invalidateSize(), 100);
-
                 return () => {
                     if (mapInstanceRef.current) {
                         mapInstanceRef.current.remove();
@@ -182,7 +177,14 @@
                 };
             }, []);
 
-            // Handle Focus Location (Zoom from Gallery)
+            // Handle Resize (Important for Split Screen)
+            useEffect(() => {
+                if (mapInstanceRef.current) {
+                    setTimeout(() => mapInstanceRef.current.invalidateSize(), 300);
+                }
+            }, [data]); // Trigger resize when data changes/layout might shift
+
+            // Handle Focus Location
             useEffect(() => {
                 if (mapInstanceRef.current && focusLocation) {
                     mapInstanceRef.current.flyTo([focusLocation.lat, focusLocation.lng], 17, {
@@ -192,24 +194,13 @@
                 }
             }, [focusLocation]);
 
-            // Handle Data & Filter Updates
+            // Handle Markers Update
             useEffect(() => {
                 if (!mapInstanceRef.current || !markersLayerRef.current) return;
 
-                // 1. Filter Data
-                let filteredData = data;
-                if (mapFilterDistrict !== 'all') {
-                    filteredData = filteredData.filter(d => d.district === mapFilterDistrict);
-                }
-                if (mapFilterType !== 'all') {
-                    filteredData = filteredData.filter(d => d.type === mapFilterType);
-                }
-
-                // 2. Clear & Redraw Markers
                 markersLayerRef.current.clearLayers();
-                const markers = [];
-
-                filteredData.forEach(item => {
+                
+                data.forEach(item => {
                     const isTree = item.type && item.type.includes('ยืนต้น');
                     const color = isTree ? '#15803d' : '#84cc16';
                     
@@ -240,56 +231,14 @@
                     `;
                     marker.bindPopup(popupHtml);
                     markersLayerRef.current.addLayer(marker);
-                    markers.push(marker);
                 });
 
-                // 3. Auto Zoom to fit bounds (only if not focusing on specific point)
-                if (!focusLocation && markers.length > 0) {
-                     const group = L.featureGroup(markers);
-                     try {
-                        mapInstanceRef.current.fitBounds(group.getBounds(), { padding: [50, 50] });
-                     } catch(e) {}
-                }
-
-            }, [data, mapFilterDistrict, mapFilterType, focusLocation]); 
+            }, [data]); 
 
             return (
                 <div className="relative w-full h-full">
-                    <div ref={mapContainerRef} className="w-full h-full bg-gray-100 z-0"></div>
-                    
-                    {/* Floating Filter Control */}
-                    <div className="absolute top-4 right-4 z-[500] bg-white p-4 rounded-lg shadow-xl border border-gray-200 w-64">
-                        <div className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-                            <IconFilter size={18}/> ตัวกรองแผนที่
-                        </div>
-                        
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">เขต</label>
-                                <select 
-                                    value={mapFilterDistrict}
-                                    onChange={(e) => { setMapFilterDistrict(e.target.value); }}
-                                    className="w-full bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded focus:ring-green-500 focus:border-green-500 block p-2"
-                                >
-                                    <option value="all">แสดงทุกเขต</option>
-                                    {districtList.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">ประเภท</label>
-                                <select 
-                                    value={mapFilterType}
-                                    onChange={(e) => { setMapFilterType(e.target.value); }}
-                                    className="w-full bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded focus:ring-green-500 focus:border-green-500 block p-2"
-                                >
-                                    <option value="all">แสดงทุกประเภท</option>
-                                    {typeList.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Legend */}
+                    <div ref={mapContainerRef} className="w-full h-full z-0"></div>
+                     {/* Legend */}
                     <div className="absolute bottom-8 left-4 z-[500] bg-white/90 backdrop-blur px-3 py-2 rounded-lg shadow border border-gray-200 text-xs">
                         <div className="flex items-center gap-2 mb-1">
                             <span className="w-3 h-3 rounded-full bg-green-700 border border-white shadow-sm"></span>
@@ -306,16 +255,16 @@
 
         const App = () => {
             const [data, setData] = useState(INITIAL_DATA);
-            const [view, setView] = useState('dashboard');
+            const [view, setView] = useState('map'); // 'dashboard' | 'map' (latest is merged into map)
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
 
-            // Focus State for Map Zoom
+            // Global Filters
+            const [filterDistrict, setFilterDistrict] = useState('all');
+            const [filterType, setFilterType] = useState('all');
+            
+            // Map Interaction
             const [mapFocusLocation, setMapFocusLocation] = useState(null);
-
-            // Filters for Gallery View
-            const [galleryFilterDistrict, setGalleryFilterDistrict] = useState('all');
-            const [galleryFilterType, setGalleryFilterType] = useState('all');
 
             // --- Stats Logic ---
             const stats = useMemo(() => {
@@ -356,19 +305,22 @@
                 };
             }, [data]);
 
-            // --- Filtered Data for Gallery ---
-            const filteredGalleryData = useMemo(() => {
+            // --- Filtered Data (Shared between Map & Gallery) ---
+            const filteredData = useMemo(() => {
                 let result = [...data];
-                if (galleryFilterDistrict !== 'all') result = result.filter(item => item.district === galleryFilterDistrict);
-                if (galleryFilterType !== 'all') result = result.filter(item => item.type === galleryFilterType);
+                if (filterDistrict !== 'all') result = result.filter(item => item.district === filterDistrict);
+                if (filterType !== 'all') result = result.filter(item => item.type === filterType);
+                // Sort by date desc for gallery
                 result.sort((a, b) => parseDate(b.date) - parseDate(a.date));
-                return result.slice(0, 100);
-            }, [data, galleryFilterDistrict, galleryFilterType]);
+                return result;
+            }, [data, filterDistrict, filterType]);
+
+            // Limit gallery items for performance, but map shows all filtered
+            const galleryItems = filteredData.slice(0, 100);
 
             // --- Actions ---
             const handleZoomToMap = (lat, lng) => {
                 setMapFocusLocation({ lat, lng });
-                setView('map');
             };
 
             const handleFetchPublicSheet = () => {
@@ -413,33 +365,30 @@
             };
 
             return (
-                <div className="flex h-screen overflow-hidden bg-green-50 text-gray-800 font-sans">
+                <div className="flex h-screen overflow-hidden bg-white text-gray-800 font-sans">
                     
-                    {/* Sidebar */}
-                    <aside className="w-64 bg-white shadow-xl flex-shrink-0 flex flex-col z-20 hidden md:flex">
-                        <div className="p-6 border-b border-green-100 flex items-center gap-3">
-                            <div className="bg-green-600 text-white p-2 rounded-lg shadow-sm">
-                                <IconTree />
+                    {/* Sidebar Navigation (Left - Collapsed on mobile) */}
+                    <aside className="w-16 md:w-64 bg-white shadow-xl flex-shrink-0 flex flex-col z-30 border-r border-gray-100 hidden md:flex">
+                        <div className="p-4 border-b border-green-100 flex items-center gap-3">
+                            <div className="bg-green-600 text-white p-2 rounded-lg shadow-sm flex-shrink-0">
+                                <IconTree size={24}/>
                             </div>
-                            <h1 className="font-bold text-lg text-green-900 leading-tight">Bangkok<br/>Green Monitor</h1>
+                            <h1 className="font-bold text-lg text-green-900 leading-tight hidden md:block">Bangkok<br/>Green Monitor</h1>
                         </div>
 
-                        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
-                            <button onClick={() => setView('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${view === 'dashboard' ? 'bg-green-100 text-green-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-                                <IconBarChart /> ภาพรวมข้อมูล
+                        <nav className="p-2 space-y-2 flex-1 overflow-y-auto">
+                            <button onClick={() => setView('dashboard')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${view === 'dashboard' ? 'bg-green-50 text-green-800 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                <IconBarChart size={20} className="flex-shrink-0"/> <span className="hidden md:block">ภาพรวมข้อมูล</span>
                             </button>
-                            <button onClick={() => setView('map')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${view === 'map' ? 'bg-green-100 text-green-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-                                <IconMap /> แผนที่พิกัด
-                            </button>
-                            <button onClick={() => setView('latest')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${view === 'latest' ? 'bg-green-100 text-green-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-                                <IconGallery /> ข้อมูลล่าสุด
+                            <button onClick={() => setView('map')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${view === 'map' ? 'bg-green-50 text-green-800 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                <IconMap size={20} className="flex-shrink-0"/> <span className="hidden md:block">แผนที่และข้อมูล</span>
                             </button>
 
-                            <div className="mt-6 px-4">
+                            <div className="mt-6 px-2 hidden md:block">
                                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">แหล่งข้อมูล</div>
                                 <button onClick={handleFetchPublicSheet} disabled={loading} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 p-3 rounded-lg border border-blue-200 flex items-center gap-3 transition-colors mb-3 group">
                                     <div className="bg-blue-100 group-hover:bg-white p-1.5 rounded transition-colors"><IconCloudDownload size={18} /></div>
-                                    <div className="text-left"><div className="text-xs font-bold">โหลดข้อมูล Google Sheet</div></div>
+                                    <div className="text-left"><div className="text-xs font-bold">โหลดข้อมูล Sheet</div></div>
                                 </button>
                                 <label className="flex flex-col items-center justify-center w-full h-12 border-2 border-green-300 border-dashed rounded-lg cursor-pointer hover:bg-green-50 transition-colors bg-white">
                                     <div className="flex items-center gap-2"><IconUpload size={16} className="text-green-500"/><span className="text-[10px] text-gray-500 font-medium">อัปโหลด CSV</span></div>
@@ -455,13 +404,13 @@
                         <div className="flex gap-2">
                             <button onClick={() => setView('dashboard')} className={`p-2 rounded ${view === 'dashboard' ? 'bg-green-100' : ''}`}><IconBarChart /></button>
                             <button onClick={() => setView('map')} className={`p-2 rounded ${view === 'map' ? 'bg-green-100' : ''}`}><IconMap /></button>
-                            <button onClick={() => setView('latest')} className={`p-2 rounded ${view === 'latest' ? 'bg-green-100' : ''}`}><IconGallery /></button>
                         </div>
                     </div>
 
-                    {/* Main Content */}
-                    <main className="flex-1 flex flex-col relative pt-16 md:pt-0">
-                        {/* Loading Overlay */}
+                    {/* Main Content Area */}
+                    <main className="flex-1 flex flex-col relative h-full pt-16 md:pt-0 overflow-hidden">
+                        
+                        {/* Loading/Error Overlays */}
                         {loading && (
                             <div className="absolute inset-0 bg-white/80 z-[2000] flex items-center justify-center backdrop-blur-sm">
                                 <div className="flex flex-col items-center gap-3">
@@ -470,132 +419,159 @@
                                 </div>
                             </div>
                         )}
-
-                        {/* Error Notification */}
-                        {error && (
+                         {error && (
                             <div className="absolute top-4 left-4 right-4 z-[2000] p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-center justify-between shadow-lg">
                                 <span className="text-sm">{error}</span>
                                 <button onClick={() => setError(null)} className="font-bold hover:text-red-900">✕</button>
                             </div>
                         )}
 
-                        {/* Dynamic View Content */}
-                        {view === 'map' ? (
-                            // Full Frame Map
-                            <div className="flex-1 h-full relative">
-                                <MapComponent 
-                                    data={data} 
-                                    focusLocation={mapFocusLocation}
-                                    districtList={stats.districtList}
-                                    typeList={stats.typeList}
-                                />
-                            </div>
-                        ) : (
-                            // Scrollable Content for Dashboard & Latest
-                            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-                                {/* Stats Header (Visible in Dashboard & Latest) */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* View Switching */}
+                        {view === 'dashboard' ? (
+                            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-green-50">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-6">ภาพรวมข้อมูลการปลูกต้นไม้</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500"><h3 className="text-gray-500 text-sm font-medium">ต้นไม้ทั้งหมด</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalTrees.toLocaleString()}</p></div>
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-lime-500"><h3 className="text-gray-500 text-sm font-medium">เขตที่ปลูกมากสุด</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.topDistrict[0]}</p><p className="text-xs text-gray-400">จำนวน {stats.topDistrict[1].toLocaleString()} ต้น</p></div>
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-emerald-500"><h3 className="text-gray-500 text-sm font-medium">จุดพิกัดทั้งหมด</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalRecords.toLocaleString()}</p></div>
                                 </div>
-
-                                {/* Dashboard Content */}
-                                {view === 'dashboard' && (
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
-                                        <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
-                                            <h3 className="text-lg font-bold text-gray-700 mb-4">10 อันดับเขตที่มีการปลูกต้นไม้</h3>
-                                            <div className="h-[350px]">
-                                                {window.Recharts ? (
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <BarChart data={stats.chartDataDistrict} layout="vertical" margin={{left: 40}}>
-                                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                            <XAxis type="number" />
-                                                            <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
-                                                            <Tooltip />
-                                                            <Bar dataKey="value" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={24} />
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
-                                                ) : <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>}
-                                            </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
+                                    <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
+                                        <h3 className="text-lg font-bold text-gray-700 mb-4">10 อันดับเขตที่มีการปลูกต้นไม้</h3>
+                                        <div className="h-[350px]">
+                                            {window.Recharts ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={stats.chartDataDistrict} layout="vertical" margin={{left: 40}}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                        <XAxis type="number" />
+                                                        <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
+                                                        <Tooltip />
+                                                        <Bar dataKey="value" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={24} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            ) : <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>}
                                         </div>
-                                        <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
-                                            <h3 className="text-lg font-bold text-gray-700 mb-4">สัดส่วนประเภทต้นไม้</h3>
-                                            <div className="h-[350px]">
-                                                {window.Recharts ? (
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <PieChart>
-                                                            <Pie data={stats.chartDataType} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value">
-                                                                {stats.chartDataType.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                                                            </Pie>
-                                                            <Tooltip />
-                                                            <Legend verticalAlign="bottom" height={36}/>
-                                                        </PieChart>
-                                                    </ResponsiveContainer>
-                                                ) : <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>}
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
+                                        <h3 className="text-lg font-bold text-gray-700 mb-4">สัดส่วนประเภทต้นไม้</h3>
+                                        <div className="h-[350px]">
+                                            {window.Recharts ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie data={stats.chartDataType} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value">
+                                                            {stats.chartDataType.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                                                        </Pie>
+                                                        <Tooltip />
+                                                        <Legend verticalAlign="bottom" height={36}/>
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            ) : <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลดกราฟ...</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* --- MAP & GALLERY SPLIT VIEW --- */
+                            <div className="flex w-full h-full overflow-hidden">
+                                
+                                {/* 1. Map Area (Flexible Width) */}
+                                <div className="flex-1 relative h-full bg-gray-200">
+                                    <MapComponent 
+                                        data={filteredData} // Map markers are filtered by side panel
+                                        focusLocation={mapFocusLocation}
+                                    />
+                                </div>
+
+                                {/* 2. Right Sidebar: Filters & Gallery (Fixed Width) */}
+                                <div className="w-80 md:w-96 bg-white border-l border-gray-200 flex flex-col h-full shadow-2xl z-20">
+                                    
+                                    {/* Header & Filters */}
+                                    <div className="p-4 border-b border-gray-100 bg-gray-50">
+                                        <div className="flex items-center gap-2 mb-3 text-green-800 font-bold">
+                                            <IconFilter size={18}/> <span>ตัวกรองข้อมูล</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">เขต</label>
+                                                    <select 
+                                                        value={filterDistrict} 
+                                                        onChange={(e) => setFilterDistrict(e.target.value)}
+                                                        className="w-full mt-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 bg-white border p-2"
+                                                    >
+                                                        <option value="all">ทุกเขต</option>
+                                                        {stats.districtList.map(d => <option key={d} value={d}>{d}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">ประเภท</label>
+                                                    <select 
+                                                        value={filterType} 
+                                                        onChange={(e) => setFilterType(e.target.value)}
+                                                        className="w-full mt-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 bg-white border p-2"
+                                                    >
+                                                        <option value="all">ทุกประเภท</option>
+                                                        {stats.typeList.map(t => <option key={t} value={t}>{t}</option>)}
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                )}
 
-                                {/* Latest/Gallery Content */}
-                                {view === 'latest' && (
-                                    <div className="space-y-4">
-                                        {/* Gallery Filter Bar */}
-                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-green-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-                                            <div className="flex items-center gap-2 text-green-800 font-bold"><IconGallery size={20}/><span>ข้อมูลล่าสุด (100 รายการ)</span></div>
-                                            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                                                <div className="flex items-center gap-2"><IconFilter size={16} className="text-gray-400"/><span className="text-sm font-medium text-gray-600">กรองข้อมูล:</span></div>
-                                                <select value={galleryFilterDistrict} onChange={(e) => setGalleryFilterDistrict(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg p-2 outline-none">
-                                                    <option value="all">ทุกเขต</option>
-                                                    {stats.districtList.map(d => <option key={d} value={d}>{d}</option>)}
-                                                </select>
-                                                <select value={galleryFilterType} onChange={(e) => setGalleryFilterType(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg p-2 outline-none">
-                                                    <option value="all">ทุกประเภท</option>
-                                                    {stats.typeList.map(t => <option key={t} value={t}>{t}</option>)}
-                                                </select>
-                                            </div>
-                                        </div>
+                                    {/* Results Count */}
+                                    <div className="px-4 py-2 bg-green-600 text-white text-xs font-semibold flex justify-between items-center shadow-sm">
+                                        <span>ผลลัพธ์: {filteredData.length.toLocaleString()} รายการ</span>
+                                        <span>(แสดงล่าสุด 100)</span>
+                                    </div>
 
-                                        {/* Gallery Grid */}
-                                        {filteredGalleryData.length === 0 ? (
-                                            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>
+                                    {/* Scrollable Gallery List */}
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                                        {galleryItems.length === 0 ? (
+                                            <div className="text-center py-10 text-gray-400">ไม่พบข้อมูล</div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                                {filteredGalleryData.map((item, index) => (
-                                                    <div key={`${item.id}-${index}`} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex h-40 group">
-                                                        <div className="w-2/5 relative bg-gray-100 flex-shrink-0">
-                                                            {item.image && item.image.startsWith('http') ? (
-                                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => {e.target.style.display='none';}}/>
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-gray-300"><IconTree size={32}/></div>
-                                                            )}
-                                                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm" style={{backgroundColor: item.type && item.type.includes('ยืนต้น') ? '#15803d' : '#84cc16'}}>{item.type}</div>
+                                            galleryItems.map((item, index) => (
+                                                <div 
+                                                    key={`${item.id}-${index}`} 
+                                                    className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-green-300 transition-all cursor-pointer group flex flex-col"
+                                                    onClick={() => handleZoomToMap(item.lat, item.lng)}
+                                                >
+                                                    {/* Image Header */}
+                                                    <div className="relative h-32 bg-gray-100 overflow-hidden">
+                                                        {item.image && item.image.startsWith('http') ? (
+                                                            <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-gray-300"><IconTree size={32}/></div>
+                                                        )}
+                                                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm" style={{backgroundColor: item.type && item.type.includes('ยืนต้น') ? '#15803d' : '#84cc16'}}>
+                                                            {item.type}
                                                         </div>
-                                                        <div className="w-3/5 p-4 flex flex-col justify-between relative">
-                                                            <div>
-                                                                <h4 className="font-bold text-green-800 line-clamp-1 mb-1" title={item.name}>{item.name || 'ไม่ระบุชื่อ'}</h4>
-                                                                <div className="flex items-start gap-1 text-xs text-gray-500 mb-2">
-                                                                    <IconMap size={12} className="mt-0.5 flex-shrink-0"/>
-                                                                    <span className="line-clamp-2">เขต{item.district}</span>
-                                                                </div>
+                                                        <div className="absolute bottom-2 right-2 bg-white/90 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                                                            <IconSearchMap size={14} className="text-green-700"/>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Content Body */}
+                                                    <div className="p-3">
+                                                        <h4 className="font-bold text-gray-800 text-sm line-clamp-1 mb-1">{item.name || 'ไม่ระบุชื่อ'}</h4>
+                                                        <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
+                                                            <IconMap size={10} className="flex-shrink-0"/>
+                                                            <span className="line-clamp-1">เขต{item.district} {item.subdistrict && `(${item.subdistrict})`}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-end border-t border-gray-50 pt-2 mt-1">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[10px] text-gray-400">จำนวน</span>
+                                                                <span className="font-bold text-green-700 text-sm leading-none">{item.quantity}</span>
                                                             </div>
-                                                            <div className="flex justify-between items-end border-t border-gray-100 pt-2">
-                                                                <div>
-                                                                    <span className="font-bold text-gray-700 text-sm">{item.quantity}</span> <span className="text-gray-500 text-xs">ต้น</span>
-                                                                    <div className="text-[10px] text-green-600 mt-0.5">{item.date}</div>
-                                                                </div>
-                                                                <button onClick={() => handleZoomToMap(item.lat, item.lng)} className="bg-green-50 hover:bg-green-100 text-green-700 p-2 rounded-full transition-colors flex items-center gap-1 text-xs font-semibold" title="ดูในแผนที่">
-                                                                    <IconSearchMap size={14}/>
-                                                                </button>
+                                                            <div className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                                                                {item.date}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                </div>
+                                            ))
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         )}
                     </main>
