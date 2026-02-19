@@ -83,7 +83,7 @@
             background: #e5e7eb;
         }
 
-        /* --- Pulsing Marker CSS --- */
+        /* --- Pulsing Marker CSS (Green Tree) --- */
         .pulsing-icon {
             position: relative;
             display: flex;
@@ -92,27 +92,31 @@
         }
         .pulsing-ring {
             position: absolute;
-            width: 20px;
-            height: 20px;
-            background-color: #ef4444; /* Red-500 */
+            width: 40px;
+            height: 40px;
+            background-color: #22c55e; /* Green-500 */
             border-radius: 50%;
             opacity: 0.6;
             animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
         }
-        .pulsing-dot {
+        .tree-marker-icon {
             position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: #dc2626; /* Red-600 */
-            border: 2px solid white;
+            width: 28px;
+            height: 28px;
+            background-color: #ffffff;
+            border: 2px solid #15803d; /* Green-700 */
             border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             z-index: 10;
+            color: #15803d;
         }
         
         @keyframes pulse-ring {
             0% { transform: scale(0.5); opacity: 0.8; }
-            100% { transform: scale(3); opacity: 0; }
+            100% { transform: scale(2.5); opacity: 0; }
         }
     </style>
 </head>
@@ -137,7 +141,6 @@
             { id: 12101, district: 'ประเวศ', subdistrict: 'หนองบอน', lat: 13.68753, lng: 100.656281, date: '30/07/2565', name: 'ต้นคูน', type: 'ไม้ยืนต้น', quantity: 1, image: '' },
             { id: 1983101, district: 'พระนคร', subdistrict: 'สำราญราษฎร์', lat: 13.750815, lng: 100.504784, date: '03/02/2026', name: 'ไทรเกาหลี', type: 'ไม้พุ่ม', quantity: 840, image: 'https://tree.bangkok.go.th/media/tree_items/EPB2xRRzFUZne5DULUSo6o.jpg' },
             { id: 1729806, district: 'บางกอกใหญ่', subdistrict: 'วัดท่าพระ', lat: 13.730381, lng: 100.470842, date: '01/02/1980', name: 'ตะขบบ้าน', type: 'ไม้ยืนต้น', quantity: 1, image: 'https://tree.bangkok.go.th/media/tree_items/BUAMZBKQWXZBLCGGNJVOKZAOCPLE.jpg' },
-            { id: 1729807, district: 'บางกอกใหญ่', subdistrict: 'วัดท่าพระ', lat: 13.730381, lng: 100.470842, date: '01/02/1980', name: 'หูกวาง', type: 'ไม้ยืนต้น', quantity: 1, image: 'https://tree.bangkok.go.th/media/tree_items/ALIMGJEENAGIUUWZQMDFENQHGSUU.jpg' },
         ];
 
         const COLORS = ['#16a34a', '#84cc16', '#22c55e', '#15803d', '#4ade80', '#14532d', '#3f6212', '#65a30d'];
@@ -207,24 +210,28 @@
                 if (mapInstanceRef.current && focusLocation && highlightLayerRef.current) {
                     const { lat, lng, item } = focusLocation;
                     
-                    // 1. Clear previous highlights
                     highlightLayerRef.current.clearLayers();
 
-                    // 2. Fly to location
                     mapInstanceRef.current.flyTo([lat, lng], 18, {
                         animate: true,
                         duration: 1.2
                     });
 
-                    // 3. Create Pulsing Icon
+                    // Create Pulsing Tree Icon (Green)
                     const pulsingIcon = L.divIcon({
                         className: 'pulsing-icon',
-                        html: `<div class="pulsing-ring"></div><div class="pulsing-dot"></div>`,
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
+                        html: `
+                            <div class="pulsing-ring"></div>
+                            <div class="tree-marker-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M10 10v.2A3 3 0 0 1 8.9 16v0H5v0h0a3 3 0 0 1-1-5.8V10a3 3 0 0 1 5.3-2.1"/><path d="M7 16v6"/><path d="M13 19v3"/><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .9-1.7l-2-6a1 1 0 0 0-1.9 0l-2 6a1 1 0 0 0 .9 1.7h.2l-2 3.3a1 1 0 0 0 .7 1.7H13z"/>
+                                </svg>
+                            </div>
+                        `,
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20]
                     });
 
-                    // 4. Create Marker with Popup content
                     const highlightMarker = L.marker([lat, lng], { icon: pulsingIcon });
                     
                     const popupContent = `
@@ -252,14 +259,12 @@
                     highlightMarker.bindPopup(popupContent);
                     highlightLayerRef.current.addLayer(highlightMarker);
 
-                    // 5. Open Popup after zoom
                     setTimeout(() => {
                         highlightMarker.openPopup();
                     }, 1200);
                 }
             }, [focusLocation]);
 
-            // Handle Normal Markers
             useEffect(() => {
                 if (!mapInstanceRef.current || !markersLayerRef.current) return;
                 markersLayerRef.current.clearLayers();
@@ -277,7 +282,6 @@
                         fillOpacity: 0.8
                     });
                     
-                    // Simple popup for normal markers (without auto-open logic)
                     marker.bindPopup(`
                         <div style="font-family: 'Sarabun', sans-serif;">
                             <strong>${item.name}</strong><br/>
@@ -311,7 +315,6 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             
-            // Global Filters
             const [filterDistrict, setFilterDistrict] = useState('all');
             const [filterType, setFilterType] = useState('all');
             
@@ -361,7 +364,6 @@
 
             const galleryItems = filteredData.slice(0, 100);
 
-            // Updated Zoom Handler: Passes the full item to map for Popup
             const handleZoomToMap = (item) => {
                 setMapFocusLocation({ lat: item.lat, lng: item.lng, item: item });
             };
