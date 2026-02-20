@@ -182,6 +182,16 @@
             return `${monthName} ${thaiYear}`;
         };
 
+        // Data cleansing function for tree types
+        const sanitizeTreeType = (typeStr) => {
+            if (!typeStr) return 'อื่นๆ';
+            const t = typeStr.trim();
+            if (t === 'ยืนต้น') return 'ไม้ยืนต้น';
+            if (t === 'พุ่ม') return 'ไม้พุ่ม';
+            if (t === 'เลื้อย') return 'ไม้เลื้อย';
+            return t;
+        };
+
         const getTreeStyle = (typeStr) => {
             if (!typeStr) return { color: '#10b981' }; 
             if (typeStr.includes('ยืนต้น')) return { color: '#15803d' }; 
@@ -373,10 +383,16 @@
                     download: true, header: true, skipEmptyLines: true,
                     complete: (results) => {
                          const parsedData = results.data.map((row, index) => ({
-                            id: index, district: row['เขต'], subdistrict: row['แขวง'],
-                            lat: parseFloat(row['latitude']), lng: parseFloat(row['longitude']),
-                            date: row['วันที่ปลูก'], name: row['ชื่อต้นไม้ที่ปลูก'],
-                            type: row['ประเภทต้นไม้ที่ปลูก'], quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
+                            id: index, 
+                            district: row['เขต'], 
+                            subdistrict: row['แขวง'],
+                            lat: parseFloat(row['latitude']), 
+                            lng: parseFloat(row['longitude']),
+                            date: row['วันที่ปลูก'], 
+                            name: row['ชื่อต้นไม้ที่ปลูก'],
+                            // Data cleansing for tree types
+                            type: sanitizeTreeType(row['ประเภทต้นไม้ที่ปลูก']), 
+                            quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
                             image: row['รูปของต้นไม้ที่ปลูก']
                         })).filter(item => !isNaN(item.lat) && !isNaN(item.lng) && item.lat !== 0 && item.lng !== 0);
                         
@@ -398,7 +414,7 @@
                 const typeCounts = {};
                 const monthCounts = {};
                 const speciesCounts = {};
-                const districtTypeMatrix = {}; // For District x Type table
+                const districtTypeMatrix = {}; 
                 
                 const districtSet = new Set();
                 const typeSet = new Set();
@@ -408,11 +424,10 @@
                 data.forEach(item => {
                     const qty = parseInt(item.quantity) || 0;
                     const dist = item.district ? item.district.trim() : 'ไม่ระบุ';
-                    const t = item.type ? item.type.trim() : 'อื่นๆ';
+                    const t = item.type; // already sanitized
                     const my = parseMonthYear(item.date);
                     const sp = item.name ? item.name.trim() : 'ไม่ระบุชื่อ';
 
-                    // Simple Aggregations
                     districtCounts[dist] = (districtCounts[dist] || 0) + qty;
                     districtSet.add(dist);
                     
@@ -427,7 +442,6 @@
                     speciesCounts[sp] = (speciesCounts[sp] || 0) + qty;
                     speciesSet.add(sp);
 
-                    // Matrix Aggregation (District x Type)
                     if (!districtTypeMatrix[dist]) districtTypeMatrix[dist] = { total: 0 };
                     districtTypeMatrix[dist][t] = (districtTypeMatrix[dist][t] || 0) + qty;
                     districtTypeMatrix[dist].total += qty;
@@ -435,23 +449,19 @@
 
                 const topDistrict = Object.entries(districtCounts).sort((a, b) => b[1] - a[1])[0] || ['-', 0];
                 
-                // Chart Data (Top 10)
                 const chartDataDistrict = Object.keys(districtCounts).map(k => ({ name: k, value: districtCounts[k] })).sort((a,b) => b.value - a.value).slice(0, 10);
                 const chartDataType = Object.keys(typeCounts).map(k => ({ name: k, value: typeCounts[k] })).filter(item => item.value > 0);
 
-                // Sorted Array Lists (Thai Alphabetical)
                 const districtListSorted = Array.from(districtSet).sort((a, b) => a.localeCompare(b, 'th'));
                 const typeListSorted = Array.from(typeSet).sort((a, b) => a.localeCompare(b, 'th'));
                 const speciesListSorted = Array.from(speciesSet).sort((a, b) => a.localeCompare(b, 'th'));
-                const monthListSorted = Array.from(monthSet).sort().reverse(); // Chronological (newest first)
+                const monthListSorted = Array.from(monthSet).sort().reverse(); 
 
-                // Summary Tables (Descending by Value)
                 const tableDistrict = Object.keys(districtCounts).map(k => ({ name: k, value: districtCounts[k] })).sort((a,b) => b.value - a.value);
                 const tableType = Object.keys(typeCounts).map(k => ({ name: k, value: typeCounts[k] })).sort((a,b) => b.value - a.value);
                 const tableSpecies = Object.keys(speciesCounts).map(k => ({ name: k, value: speciesCounts[k] })).sort((a,b) => b.value - a.value);
                 const tableMonth = Object.keys(monthCounts).map(k => ({ name: k, value: monthCounts[k] })).sort((a,b) => b.name.localeCompare(a.name));
 
-                // Matrix Table Data (Alphabetical by District)
                 const matrixData = Object.keys(districtTypeMatrix)
                     .map(d => ({ district: d, ...districtTypeMatrix[d] }))
                     .sort((a, b) => a.district.localeCompare(b.district, 'th'));
@@ -482,6 +492,26 @@
 
             const handleZoomToMap = (item) => {
                 setMapFocusLocation({ lat: item.lat, lng: item.lng, item: item });
+            };
+
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                setLoading(true);
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: (results) => {
+                        const parsedData = results.data.map((row, index) => ({
+                            id: index, district: row['เขต'], subdistrict: row['แขวง'],
+                            lat: parseFloat(row['latitude']), lng: parseFloat(row['longitude']),
+                            date: row['วันที่ปลูก'], name: row['ชื่อต้นไม้ที่ปลูก'],
+                            type: sanitizeTreeType(row['ประเภทต้นไม้ที่ปลูก']),
+                            quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
+                            image: row['รูปของต้นไม้ที่ปลูก']
+                        })).filter(item => !isNaN(item.lat) && !isNaN(item.lng));
+                        setData(parsedData); setLoading(false);
+                    }
+                });
             };
 
             return (
