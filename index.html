@@ -128,20 +128,12 @@
     </div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts || {};
         const L = window.L;
 
         const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
         const BANGKOK_BOUNDS = [[13.49, 100.32], [13.96, 100.93]];
-
-        // --- Mock Data ---
-        const INITIAL_DATA = [
-            { id: 12101, district: 'ประเวศ', subdistrict: 'หนองบอน', lat: 13.68753, lng: 100.656281, date: '30/07/2565', name: 'ต้นคูน', type: 'ไม้ยืนต้น', quantity: 1, image: '' },
-            { id: 1983101, district: 'พระนคร', subdistrict: 'สำราญราษฎร์', lat: 13.750815, lng: 100.504784, date: '03/02/2026', name: 'ไทรเกาหลี', type: 'ไม้พุ่ม', quantity: 840, image: 'https://tree.bangkok.go.th/media/tree_items/EPB2xRRzFUZne5DULUSo6o.jpg' },
-            { id: 1729806, district: 'บางกอกใหญ่', subdistrict: 'วัดท่าพระ', lat: 13.730381, lng: 100.470842, date: '01/02/1980', name: 'ตะขบบ้าน', type: 'ไม้ยืนต้น', quantity: 1, image: 'https://tree.bangkok.go.th/media/tree_items/BUAMZBKQWXZBLCGGNJVOKZAOCPLE.jpg' },
-            { id: 9999999, district: 'บางพลัด', subdistrict: 'บางอ้อ', lat: 13.793566, lng: 100.505523, date: '06/02/2026', name: 'เข็มสามสี', type: 'อื่นๆ', quantity: 40, image: '' },
-        ];
 
         const COLORS = ['#16a34a', '#84cc16', '#10b981', '#15803d', '#4ade80', '#14532d', '#059669', '#34d399'];
 
@@ -150,7 +142,6 @@
         const IconMap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>;
         const IconBarChart = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>;
         const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
-        const IconCloudDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>;
         const IconFilter = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
         const IconSearchMap = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
 
@@ -224,7 +215,6 @@
                 </div>
             `;
         };
-
 
         const MapComponent = ({ data, focusLocation }) => {
             const mapContainerRef = useRef(null);
@@ -325,7 +315,6 @@
                         fillOpacity: 0.8
                     });
                     
-                    // Use the exact same Rich Popup for standard markers
                     marker.bindPopup(getRichPopupHTML(item, style.color));
                     markersLayerRef.current.addLayer(marker);
                 });
@@ -355,9 +344,10 @@
         };
 
         const App = () => {
-            const [data, setData] = useState(INITIAL_DATA);
+            // Start with empty data, we will fetch immediately
+            const [data, setData] = useState([]); 
             const [view, setView] = useState('map');
-            const [loading, setLoading] = useState(false);
+            const [loading, setLoading] = useState(true); // Set initial loading to true
             const [error, setError] = useState(null);
             
             // Global Filters (Expanded)
@@ -367,6 +357,43 @@
             const [filterSpecies, setFilterSpecies] = useState('all');
             
             const [mapFocusLocation, setMapFocusLocation] = useState(null);
+
+            // --- Auto Fetch Data on Mount ---
+            const fetchSheetData = useCallback(() => {
+                setLoading(true);
+                setError(null);
+                Papa.parse(PUBLIC_SHEET_URL, {
+                    download: true, 
+                    header: true, 
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                         const parsedData = results.data.map((row, index) => ({
+                            id: index, district: row['เขต'], subdistrict: row['แขวง'],
+                            lat: parseFloat(row['latitude']), lng: parseFloat(row['longitude']),
+                            date: row['วันที่ปลูก'], name: row['ชื่อต้นไม้ที่ปลูก'],
+                            type: row['ประเภทต้นไม้ที่ปลูก'], quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
+                            image: row['รูปของต้นไม้ที่ปลูก']
+                        })).filter(item => !isNaN(item.lat) && !isNaN(item.lng) && item.lat !== 0 && item.lng !== 0);
+                        
+                        if (parsedData.length > 0) { 
+                            setData(parsedData); 
+                        } else { 
+                            setError("ไม่พบข้อมูลพิกัดในลิงก์ Google Sheet"); 
+                        }
+                        setLoading(false);
+                    },
+                    error: (err) => { 
+                        setError("ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ต"); 
+                        setLoading(false); 
+                    }
+                });
+            }, []);
+
+            // Trigger fetch on first render
+            useEffect(() => {
+                fetchSheetData();
+            }, [fetchSheetData]);
+
 
             const stats = useMemo(() => {
                 const totalTrees = data.reduce((acc, curr) => acc + (parseInt(curr.quantity) || 0), 0);
@@ -429,28 +456,6 @@
                 setMapFocusLocation({ lat: item.lat, lng: item.lng, item: item });
             };
 
-            const handleFetchPublicSheet = () => {
-                setLoading(true);
-                setError(null);
-                Papa.parse(PUBLIC_SHEET_URL, {
-                    download: true, header: true, skipEmptyLines: true,
-                    complete: (results) => {
-                         const parsedData = results.data.map((row, index) => ({
-                            id: index, district: row['เขต'], subdistrict: row['แขวง'],
-                            lat: parseFloat(row['latitude']), lng: parseFloat(row['longitude']),
-                            date: row['วันที่ปลูก'], name: row['ชื่อต้นไม้ที่ปลูก'],
-                            type: row['ประเภทต้นไม้ที่ปลูก'], quantity: parseInt(row['จำนวนต้นไม้ (ต้น)']) || 0,
-                            image: row['รูปของต้นไม้ที่ปลูก']
-                        })).filter(item => !isNaN(item.lat) && !isNaN(item.lng) && item.lat !== 0 && item.lng !== 0);
-                        
-                        if (parsedData.length > 0) { setData(parsedData); setError(null); } 
-                        else { setError("ไม่พบข้อมูลพิกัดในลิงก์ Google Sheet"); }
-                        setLoading(false);
-                    },
-                    error: (err) => { setError("ไม่สามารถดึงข้อมูลได้"); setLoading(false); }
-                });
-            };
-
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -488,13 +493,13 @@
                                 <IconMap size={20} className="flex-shrink-0"/> <span className="hidden md:block">แผนที่และข้อมูล</span>
                             </button>
                             <div className="mt-6 px-2 hidden md:block">
-                                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">แหล่งข้อมูล</div>
-                                <button onClick={handleFetchPublicSheet} disabled={loading} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 p-3 rounded-lg border border-blue-200 flex items-center gap-3 transition-colors mb-3 group">
-                                    <div className="bg-blue-100 group-hover:bg-white p-1.5 rounded transition-colors"><IconCloudDownload size={18} /></div>
-                                    <div className="text-left"><div className="text-xs font-bold">โหลดข้อมูล Sheet</div></div>
+                                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 border-t border-gray-100 pt-4">โหลดข้อมูลแบบ Manual</div>
+                                <button onClick={fetchSheetData} disabled={loading} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 rounded-lg border border-blue-200 flex items-center gap-2 transition-colors mb-2 group">
+                                    <div className="bg-blue-100 group-hover:bg-white p-1 rounded transition-colors"><IconMap size={14} /></div>
+                                    <div className="text-left text-[11px] font-bold">รีเฟรชข้อมูล (Sheet)</div>
                                 </button>
-                                <label className="flex flex-col items-center justify-center w-full h-12 border-2 border-green-300 border-dashed rounded-lg cursor-pointer hover:bg-green-50 transition-colors bg-white">
-                                    <div className="flex items-center gap-2"><IconUpload size={16} className="text-green-500"/><span className="text-[10px] text-gray-500 font-medium">อัปโหลด CSV</span></div>
+                                <label className="flex flex-col items-center justify-center w-full py-2 border border-gray-200 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors bg-white">
+                                    <div className="flex items-center gap-1 text-gray-500"><IconUpload size={12}/> <span className="text-[10px] font-medium">อัปโหลด CSV เอง</span></div>
                                     <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                                 </label>
                             </div>
@@ -514,7 +519,7 @@
                             <div className="absolute inset-0 bg-white/80 z-[2000] flex items-center justify-center backdrop-blur-sm">
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-                                    <span className="text-green-800 font-semibold">กำลังดึงข้อมูล...</span>
+                                    <span className="text-green-800 font-semibold">กำลังดึงข้อมูลล่าสุดจากระบบ...</span>
                                 </div>
                             </div>
                         )}
@@ -591,7 +596,6 @@
                                             </button>
                                         </div>
                                         
-                                        {/* 4-Grid Filter */}
                                         <div className="grid grid-cols-2 gap-x-2 gap-y-3">
                                             <div>
                                                 <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">เขต</label>
