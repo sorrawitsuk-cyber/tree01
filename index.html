@@ -23,6 +23,9 @@
     <!-- 5. Map Library -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- 6. Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
@@ -122,6 +125,13 @@
             background-color: #f8fafc;
             z-index: 10;
         }
+        .custom-table tfoot th, .custom-table tfoot td {
+            position: sticky;
+            bottom: 0;
+            background-color: #f0fdf4;
+            z-index: 10;
+            border-top: 2px solid #bbf7d0;
+        }
     </style>
 </head>
 <body>
@@ -193,10 +203,11 @@
         };
 
         const getTreeStyle = (typeStr) => {
-            if (!typeStr) return { color: '#10b981' }; 
-            if (typeStr.includes('ยืนต้น')) return { color: '#15803d' }; 
-            if (typeStr.includes('พุ่ม')) return { color: '#84cc16' }; 
-            return { color: '#10b981' }; 
+            if (!typeStr) return { color: '#10b981', bg: '#d1fae5' }; 
+            if (typeStr.includes('ยืนต้น')) return { color: '#15803d', bg: '#dcfce7' }; 
+            if (typeStr.includes('พุ่ม')) return { color: '#65a30d', bg: '#ecfccb' }; 
+            if (typeStr.includes('เลื้อย')) return { color: '#059669', bg: '#d1fae5' }; 
+            return { color: '#10b981', bg: '#d1fae5' }; 
         };
 
         const getRichPopupHTML = (item, typeColor) => {
@@ -421,6 +432,9 @@
                 const monthSet = new Set();
                 const speciesSet = new Set();
 
+                // Calculate totals for matrix footer
+                const matrixTotals = { total: 0 };
+
                 data.forEach(item => {
                     const qty = parseInt(item.quantity) || 0;
                     const dist = item.district ? item.district.trim() : 'ไม่ระบุ';
@@ -428,6 +442,7 @@
                     const my = parseMonthYear(item.date);
                     const sp = item.name ? item.name.trim() : 'ไม่ระบุชื่อ';
 
+                    // Simple Aggregations
                     districtCounts[dist] = (districtCounts[dist] || 0) + qty;
                     districtSet.add(dist);
                     
@@ -442,6 +457,7 @@
                     speciesCounts[sp] = (speciesCounts[sp] || 0) + qty;
                     speciesSet.add(sp);
 
+                    // Matrix Aggregation (District x Type)
                     if (!districtTypeMatrix[dist]) districtTypeMatrix[dist] = { total: 0 };
                     districtTypeMatrix[dist][t] = (districtTypeMatrix[dist][t] || 0) + qty;
                     districtTypeMatrix[dist].total += qty;
@@ -458,6 +474,7 @@
                 const monthListSorted = Array.from(monthSet).sort().reverse(); 
 
                 const tableDistrict = Object.keys(districtCounts).map(k => ({ name: k, value: districtCounts[k] })).sort((a,b) => b.value - a.value);
+                // Sort Type by value descending for the cards
                 const tableType = Object.keys(typeCounts).map(k => ({ name: k, value: typeCounts[k] })).sort((a,b) => b.value - a.value);
                 const tableSpecies = Object.keys(speciesCounts).map(k => ({ name: k, value: speciesCounts[k] })).sort((a,b) => b.value - a.value);
                 const tableMonth = Object.keys(monthCounts).map(k => ({ name: k, value: monthCounts[k] })).sort((a,b) => b.name.localeCompare(a.name));
@@ -466,6 +483,15 @@
                     .map(d => ({ district: d, ...districtTypeMatrix[d] }))
                     .sort((a, b) => a.district.localeCompare(b.district, 'th'));
 
+                // Calculate Matrix Totals
+                typeListSorted.forEach(t => matrixTotals[t] = 0);
+                matrixData.forEach(row => {
+                    matrixTotals.total += row.total || 0;
+                    typeListSorted.forEach(t => {
+                        if (row[t]) matrixTotals[t] += row[t];
+                    });
+                });
+
                 return { 
                     totalTrees, topDistrict, chartDataDistrict, chartDataType, totalRecords: data.length,
                     districtList: districtListSorted,
@@ -473,7 +499,7 @@
                     monthList: monthListSorted,
                     speciesList: speciesListSorted,
                     tableDistrict, tableType, tableSpecies, tableMonth,
-                    matrixData
+                    matrixData, matrixTotals
                 };
             }, [data]);
 
@@ -571,11 +597,30 @@
                         {view === 'dashboard' ? (
                             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-green-50 custom-scrollbar">
                                 
-                                {/* Top Stats */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                {/* Top Stats - Overall */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500"><h3 className="text-gray-500 text-sm font-medium">ต้นไม้ทั้งหมดที่ปลูกแล้ว</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalTrees.toLocaleString()} <span className="text-base font-normal text-gray-400">ต้น</span></p></div>
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-lime-500"><h3 className="text-gray-500 text-sm font-medium">เขตที่ปลูกมากสุด</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.topDistrict[0]}</p><p className="text-xs text-gray-400">จำนวน {stats.topDistrict[1].toLocaleString()} ต้น</p></div>
                                     <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-emerald-500"><h3 className="text-gray-500 text-sm font-medium">จำนวนจุดพิกัดที่บันทึก</h3><p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalRecords.toLocaleString()} <span className="text-base font-normal text-gray-400">จุด</span></p></div>
+                                </div>
+
+                                {/* Top Stats - Tree Types Breakdown */}
+                                <h2 className="text-lg font-bold text-gray-800 mb-3 mt-6">ยอดรวมแยกตามประเภทต้นไม้</h2>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                    {stats.tableType.map(type => {
+                                        const style = getTreeStyle(type.name);
+                                        return (
+                                            <div key={type.name} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition-shadow">
+                                                <div>
+                                                    <p className="text-xs text-gray-500 font-bold mb-1">{type.name}</p>
+                                                    <p className="text-2xl font-black text-gray-800">{type.value.toLocaleString()} <span className="text-xs font-normal text-gray-400">ต้น</span></p>
+                                                </div>
+                                                <div className="p-3 rounded-full" style={{backgroundColor: style.bg, color: style.color}}>
+                                                    <IconTree size={24} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Charts */}
@@ -660,6 +705,22 @@
                                                     ))
                                                 )}
                                             </tbody>
+                                            {/* Footer for Totals */}
+                                            {stats.matrixData.length > 0 && (
+                                                <tfoot className="text-sm font-bold text-gray-800 uppercase bg-green-50">
+                                                    <tr>
+                                                        <th scope="row" className="px-6 py-4 sticky left-0 z-20 shadow-[1px_0_0_0_#bbf7d0]">ยอดรวมทุกเขต</th>
+                                                        {stats.typeList.map(t => (
+                                                            <td key={t} className="px-6 py-4 text-right text-green-700">
+                                                                {stats.matrixTotals[t] ? stats.matrixTotals[t].toLocaleString() : '0'}
+                                                            </td>
+                                                        ))}
+                                                        <td className="px-6 py-4 text-right text-lg text-green-800 bg-green-100/50">
+                                                            {stats.matrixTotals.total.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            )}
                                         </table>
                                     </div>
                                 </div>
@@ -748,7 +809,7 @@
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-gray-300"><IconTree size={32}/></div>
                                                             )}
-                                                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm" style={{backgroundColor: badgeStyle.color}}>
+                                                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-green-800 shadow-sm" style={{backgroundColor: badgeStyle.bg}}>
                                                                 {item.type}
                                                             </div>
                                                             <div className="absolute bottom-2 right-2 bg-white/90 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
