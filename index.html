@@ -28,7 +28,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
         
         body {
             font-family: 'Sarabun', sans-serif;
@@ -132,6 +132,11 @@
             z-index: 10;
             border-top: 2px solid #bbf7d0;
         }
+        
+        /* Card Gradient Overlay */
+        .card-gradient-overlay {
+            background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+        }
     </style>
 </head>
 <body>
@@ -148,6 +153,7 @@
         const L = window.L;
 
         const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
+        // Precise Bangkok Bounds
         const BANGKOK_BOUNDS = [[13.49, 100.32], [13.96, 100.93]];
         const COLORS = ['#16a34a', '#84cc16', '#10b981', '#15803d', '#4ade80', '#14532d', '#059669', '#34d399'];
 
@@ -193,7 +199,6 @@
             return `${monthName} ${thaiYear}`;
         };
 
-        // Data cleansing
         const sanitizeTreeType = (typeStr) => {
             if (!typeStr) return 'อื่นๆ';
             const t = typeStr.trim();
@@ -204,49 +209,51 @@
         };
 
         const getTreeStyle = (typeStr) => {
-            if (!typeStr) return { color: '#10b981', bg: '#d1fae5' }; 
-            if (typeStr.includes('ยืนต้น')) return { color: '#15803d', bg: '#dcfce7' }; 
-            if (typeStr.includes('พุ่ม')) return { color: '#65a30d', bg: '#ecfccb' }; 
-            if (typeStr.includes('เลื้อย')) return { color: '#059669', bg: '#d1fae5' }; 
-            return { color: '#10b981', bg: '#d1fae5' }; 
+            if (!typeStr) return { color: '#10b981', bg: '#ecfdf5', border: '#34d399' }; 
+            if (typeStr.includes('ยืนต้น')) return { color: '#15803d', bg: '#dcfce7', border: '#22c55e' }; 
+            if (typeStr.includes('พุ่ม')) return { color: '#65a30d', bg: '#ecfccb', border: '#84cc16' }; 
+            if (typeStr.includes('เลื้อย')) return { color: '#059669', bg: '#d1fae5', border: '#34d399' }; 
+            return { color: '#10b981', bg: '#ecfdf5', border: '#34d399' }; 
         };
 
         const getRichPopupHTML = (item, typeColor) => {
             return `
-                <div style="font-family: 'Sarabun', sans-serif; min-width: 220px;">
-                    <h3 style="margin:0 0 5px 0; color:${typeColor}; font-weight:bold; font-size: 16px; line-height: 1.2;">
+                <div style="font-family: 'Sarabun', sans-serif; min-width: 240px;">
+                    <div style="margin-bottom: 8px;">
+                        <span style="background-color:${typeColor}; color:white; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold;">${item.type}</span>
+                    </div>
+                    <h3 style="margin:0 0 8px 0; color:#1f2937; font-weight:800; font-size: 18px; line-height: 1.2;">
                         ${item.name || 'ไม่ระบุชื่อ'}
                     </h3>
                     ${item.image && item.image.startsWith('http') 
-                        ? `<div style="width:100%; height:120px; background:#f0f0f0; border-radius:6px; overflow:hidden; margin-bottom:8px;">
+                        ? `<div style="width:100%; height:140px; background:#f0f0f0; border-radius:8px; overflow:hidden; margin-bottom:10px; position:relative;">
                                 <img src="${item.image}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'" />
                             </div>` 
                         : ''}
-                    <div style="font-size:13px; margin-bottom: 10px; line-height: 1.4; color: #4b5563;">
-                        <div style="display:flex; justify-content:space-between; border-bottom: 1px solid #f3f4f6; padding-bottom: 2px; margin-bottom: 2px;">
-                            <span><strong>เขต:</strong></span> <span>${item.district} ${item.subdistrict ? `(${item.subdistrict})` : ''}</span>
+                    <div style="font-size:13px; margin-bottom: 12px; line-height: 1.5; color: #4b5563;">
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom: 4px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#6b7280"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                            <span>เขต${item.district} ${item.subdistrict ? `(${item.subdistrict})` : ''}</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; border-bottom: 1px solid #f3f4f6; padding-bottom: 2px; margin-bottom: 2px;">
-                            <span><strong>ประเภท:</strong></span> <span style="color:${typeColor}; font-weight:bold;">${item.type}</span>
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom: 4px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#6b7280"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            <span>จำนวน <strong>${item.quantity}</strong> ต้น</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; border-bottom: 1px solid #f3f4f6; padding-bottom: 2px; margin-bottom: 2px;">
-                            <span><strong>จำนวน:</strong></span> <span>${item.quantity} ต้น</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between;">
-                            <span><strong>วันที่:</strong></span> <span>${item.date}</span>
+                         <div style="display:flex; align-items:center; gap:6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#6b7280"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                            <span>${item.date}</span>
                         </div>
                     </div>
                     <a href="https://www.google.com/maps?q=${item.lat},${item.lng}" target="_blank" 
-                        style="display:flex; align-items:center; justify-content:center; gap:5px; background-color:#2563eb; color:white; padding:8px 10px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; transition: background-color 0.2s;"
-                        onmouseover="this.style.backgroundColor='#1d4ed8'" onmouseout="this.style.backgroundColor='#2563eb'">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                        style="display:flex; align-items:center; justify-content:center; gap:6px; background-color:#2563eb; color:white; padding:10px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:bold; transition: all 0.2s; box-shadow: 0 2px 4px rgba(37,99,235,0.2);"
+                        onmouseover="this.style.backgroundColor='#1d4ed8'; this.style.transform='translateY(-1px)'" onmouseout="this.style.backgroundColor='#2563eb'; this.style.transform='translateY(0)'">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
                         ดู Google Street View
                     </a>
                 </div>
             `;
         };
 
-        // --- Summary Component (Scrollable List) ---
         const SummaryList = ({ title, data, icon, formatName }) => (
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-72">
                 <h3 className="text-[15px] font-bold text-gray-700 mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
@@ -255,8 +262,8 @@
                 <div className="flex-1 overflow-y-auto pr-2 space-y-1.5 custom-scrollbar">
                     {data.length === 0 ? <div className="text-center text-xs text-gray-400 py-4">ไม่มีข้อมูล</div> :
                      data.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-green-50 rounded transition-colors">
-                            <span className="text-gray-600 truncate mr-2" title={item.name}>
+                        <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-green-50 rounded-lg transition-colors">
+                            <span className="text-gray-600 truncate mr-2 font-medium" title={item.name}>
                                 {formatName ? formatName(item.name) : item.name}
                             </span>
                             <span className="font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded text-xs flex-shrink-0">
@@ -283,7 +290,11 @@
                     zoomControl: false
                 });
                 
+                // Set explicit Bangkok bounds and restrict
                 map.fitBounds(BANGKOK_BOUNDS);
+                map.setMaxBounds([[13.0, 99.5], [14.5, 101.5]]); // Slightly wider than BKK to allow panning around edges
+                map.setMinZoom(9);
+                
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
                 
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -342,7 +353,6 @@
                 if (!mapInstanceRef.current || !markersLayerRef.current) return;
                 markersLayerRef.current.clearLayers();
                 
-                // If there are too many markers, map logic handles it via preferCanvas
                 data.forEach(item => {
                     const style = getTreeStyle(item.type);
                     const marker = L.circleMarker([item.lat, item.lng], {
@@ -352,11 +362,13 @@
                     markersLayerRef.current.addLayer(marker);
                 });
 
-                // Auto fit bounds if data changes and we are not focusing
                 if (!focusLocation && data.length > 0) {
                      try {
-                        const group = L.featureGroup(markersLayerRef.current.getLayers());
-                        mapInstanceRef.current.fitBounds(group.getBounds(), { padding: [20, 20], maxZoom: 16 });
+                        // Re-fit to Bangkok bounds initially or when filter changes widely, 
+                        // but prefer keeping user view if they zoomed in? 
+                        // For now, let's just ensure we are within reasonable bounds if everything is reset.
+                        // Actually, let's just fit bounds of data if it changes significantly? 
+                        // No, let's stick to Bangkok bounds as default unless focusing.
                      } catch(e) {}
                 }
             }, [data, focusLocation]); 
@@ -385,10 +397,10 @@
 
         const App = () => {
             const [data, setData] = useState([]); 
+            const [view, setView] = useState('dashboard');
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             
-            // Global Filters 
             const [filterDistrict, setFilterDistrict] = useState('all');
             const [filterType, setFilterType] = useState('all');
             const [filterMonth, setFilterMonth] = useState('all');
@@ -396,7 +408,6 @@
             
             const [mapFocusLocation, setMapFocusLocation] = useState(null);
 
-            // Fetch Data
             const fetchSheetData = useCallback(() => {
                 setLoading(true);
                 setError(null);
@@ -426,7 +437,7 @@
 
             useEffect(() => { fetchSheetData(); }, [fetchSheetData]);
 
-            // Extract Global Filter Options (Unfiltered)
+            // Extract Global Filter Options
             const globalOptions = useMemo(() => {
                 const dSet = new Set();
                 const tSet = new Set();
@@ -450,7 +461,6 @@
             }, [data]);
 
 
-            // Apply Filters
             const filteredData = useMemo(() => {
                 let result = [...data];
                 if (filterDistrict !== 'all') result = result.filter(item => item.district === filterDistrict);
@@ -462,7 +472,7 @@
                 return result;
             }, [data, filterDistrict, filterType, filterMonth, filterSpecies]);
 
-            // Compute Stats based on FILTERED data
+            // Compute Stats
             const stats = useMemo(() => {
                 const totalTrees = filteredData.reduce((acc, curr) => acc + (parseInt(curr.quantity) || 0), 0);
                 
@@ -524,7 +534,6 @@
 
             const handleZoomToMap = (item) => {
                 setMapFocusLocation({ lat: item.lat, lng: item.lng, item: item });
-                // Optional: scroll top to map
                 document.getElementById('map-gallery-section').scrollIntoView({ behavior: 'smooth' });
             };
 
@@ -549,128 +558,132 @@
             };
 
             return (
-                <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-800 font-sans flex-col md:flex-row">
+                <div className="flex h-screen overflow-hidden bg-slate-50 text-gray-800 font-sans flex-col md:flex-row">
                     
-                    {/* Collapsed Sidebar for Branding & Actions */}
-                    <aside className="w-16 bg-white shadow-lg flex-shrink-0 flex flex-col z-30 border-r border-gray-100 hidden md:flex pb-4">
+                    {/* Collapsed Sidebar */}
+                    <aside className="w-16 bg-white shadow-lg flex-shrink-0 flex flex-col z-30 border-r border-gray-200 hidden md:flex pb-4">
                         <div className="p-4 border-b border-green-100 flex justify-center">
-                            <div className="bg-green-600 text-white p-2 rounded-lg shadow-sm">
-                                <IconTree size={20}/>
+                            <div className="bg-green-600 text-white p-2 rounded-xl shadow-lg hover:shadow-green-200 transition-all duration-300">
+                                <IconTree size={22}/>
                             </div>
                         </div>
                         <div className="flex-1"></div>
-                        <div className="px-2 space-y-2 flex flex-col items-center">
-                            <button onClick={fetchSheetData} title="รีเฟรชข้อมูล" className="p-3 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors">
-                                <IconRefresh size={18}/>
+                        <div className="px-2 space-y-3 flex flex-col items-center">
+                            <button onClick={fetchSheetData} title="รีเฟรชข้อมูล" className="p-3 bg-white text-blue-600 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:bg-blue-50 transition-all duration-200">
+                                <IconRefresh size={20}/>
                             </button>
-                            <label title="อัปโหลด CSV" className="cursor-pointer p-3 bg-gray-50 text-gray-500 rounded-full hover:bg-gray-100 transition-colors border border-dashed border-gray-300">
-                                <IconUpload size={18}/>
+                            <label title="อัปโหลด CSV" className="cursor-pointer p-3 bg-white text-gray-500 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:bg-gray-50 transition-all duration-200">
+                                <IconUpload size={20}/>
                                 <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                             </label>
                         </div>
                     </aside>
 
                     {/* Mobile Header */}
-                    <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white shadow-sm z-50 flex items-center justify-between px-4 border-b border-green-100">
-                        <div className="font-bold text-green-800 flex items-center gap-2"><IconTree size={18}/> Bangkok Green</div>
-                        <button onClick={fetchSheetData} className="text-blue-600"><IconRefresh size={18}/></button>
+                    <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white shadow-sm z-50 flex items-center justify-between px-4 border-b border-green-100">
+                        <div className="font-bold text-green-800 flex items-center gap-2"><IconTree size={20}/> Bangkok Green</div>
+                        <button onClick={fetchSheetData} className="text-blue-600 p-2"><IconRefresh size={20}/></button>
                     </div>
 
-                    {/* Main Content (Unified Dashboard) */}
-                    <main className="flex-1 flex flex-col relative h-full pt-14 md:pt-0 overflow-hidden bg-gray-50">
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col relative h-full pt-16 md:pt-0 overflow-hidden bg-slate-50">
                         
-                        {/* Loading/Error Overlays */}
+                        {/* Loading/Error */}
                         {loading && (
-                            <div className="absolute inset-0 bg-white/80 z-[2000] flex items-center justify-center backdrop-blur-sm">
-                                <div className="flex flex-col items-center gap-3">
-                                    <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-                                    <span className="text-green-800 font-semibold">กำลังดึงข้อมูลล่าสุด...</span>
+                            <div className="absolute inset-0 bg-white/90 z-[2000] flex items-center justify-center backdrop-blur-sm">
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="w-12 h-12 border-4 border-green-100 border-t-green-600 rounded-full animate-spin"></div>
+                                    <span className="text-green-800 font-bold text-lg animate-pulse">กำลังโหลดข้อมูลล่าสุด...</span>
                                 </div>
                             </div>
                         )}
                          {error && (
-                            <div className="absolute top-4 left-4 right-4 z-[2000] p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-center justify-between shadow-lg">
-                                <span className="text-sm">{error}</span>
-                                <button onClick={() => setError(null)} className="font-bold hover:text-red-900">✕</button>
+                            <div className="absolute top-4 left-4 right-4 z-[2000] p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center justify-between shadow-lg">
+                                <span className="text-sm font-medium">{error}</span>
+                                <button onClick={() => setError(null)} className="font-bold hover:text-red-900 bg-red-100 px-2 rounded">✕</button>
                             </div>
                         )}
 
-                        {/* 1. Global Filter Bar (Sticky) */}
-                        <div className="bg-white border-b border-gray-200 p-3 md:px-6 z-40 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 font-bold text-green-800 hidden md:flex">
-                                <IconFilter size={18}/> ตัวกรองข้อมูล:
+                        {/* Filter Bar */}
+                        <div className="bg-white border-b border-gray-200 p-4 z-40 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 font-bold text-green-800 text-lg hidden xl:flex whitespace-nowrap">
+                                <IconFilter size={20}/> ตัวกรองข้อมูล
                             </div>
                             
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 flex-1 w-full md:w-auto">
-                                <select value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} className="w-full text-xs md:text-sm border-gray-300 rounded shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2 outline-none font-medium">
-                                    <option value="all">ทุกเขต (ทั้งหมด)</option>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1 w-full xl:w-auto">
+                                <select value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2.5 outline-none font-medium text-gray-700 hover:bg-white transition-colors">
+                                    <option value="all">📍 ทุกเขต</option>
                                     {globalOptions.districts.map(d => <option key={d} value={d}>{d}</option>)}
                                 </select>
-                                <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-full text-xs md:text-sm border-gray-300 rounded shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2 outline-none font-medium">
-                                    <option value="all">ทุกช่วงเดือน</option>
+                                <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2.5 outline-none font-medium text-gray-700 hover:bg-white transition-colors">
+                                    <option value="all">📅 ทุกเดือน</option>
                                     {globalOptions.months.map(m => <option key={m} value={m}>{formatMonthYearTH(m)}</option>)}
                                 </select>
-                                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full text-xs md:text-sm border-gray-300 rounded shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2 outline-none font-medium">
-                                    <option value="all">ทุกประเภทต้นไม้</option>
+                                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2.5 outline-none font-medium text-gray-700 hover:bg-white transition-colors">
+                                    <option value="all">🌳 ทุกประเภท</option>
                                     {globalOptions.types.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
-                                <select value={filterSpecies} onChange={(e) => setFilterSpecies(e.target.value)} className="w-full text-xs md:text-sm border-gray-300 rounded shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2 outline-none font-medium">
-                                    <option value="all">ทุกชนิดต้นไม้</option>
+                                <select value={filterSpecies} onChange={(e) => setFilterSpecies(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 border p-2.5 outline-none font-medium text-gray-700 hover:bg-white transition-colors">
+                                    <option value="all">🌿 ทุกชนิด</option>
                                     {globalOptions.species.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             
                             {(filterDistrict !== 'all' || filterType !== 'all' || filterMonth !== 'all' || filterSpecies !== 'all') && (
-                                <button onClick={() => { setFilterDistrict('all'); setFilterType('all'); setFilterMonth('all'); setFilterSpecies('all'); }} className="text-xs text-red-500 hover:text-red-700 underline whitespace-nowrap text-center md:text-left mt-1 md:mt-0">
-                                    ล้างตัวกรอง
+                                <button onClick={() => { setFilterDistrict('all'); setFilterType('all'); setFilterMonth('all'); setFilterSpecies('all'); }} className="px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold transition-colors whitespace-nowrap text-center xl:text-left shadow-sm border border-red-100">
+                                    รีเซ็ตตัวกรอง
                                 </button>
                             )}
                         </div>
 
-                        {/* Scrollable Dashboard Body */}
+                        {/* Scrollable Body */}
                         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar scroll-smooth">
                             
-                            {/* 2. Top Stats Row */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                                <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-green-600 to-green-700 p-4 rounded-xl shadow text-white flex flex-col justify-center relative overflow-hidden">
-                                    <IconTree size={80} className="absolute -right-4 -bottom-4 opacity-20"/>
-                                    <h3 className="text-green-100 text-xs font-semibold mb-1">ผลลัพธ์การค้นหาทั้งหมด</h3>
-                                    <p className="text-3xl font-black">{stats.totalTrees.toLocaleString()} <span className="text-sm font-normal opacity-80">ต้น</span></p>
-                                    <p className="text-xs text-green-200 mt-1">จาก {stats.totalRecords.toLocaleString()} จุดพิกัด</p>
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-gradient-to-br from-green-700 to-green-600 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden flex flex-col justify-between h-32">
+                                    <div className="absolute -right-6 -bottom-6 opacity-10 transform rotate-12"><IconTree size={120}/></div>
+                                    <p className="text-green-100 text-sm font-medium z-10">ผลลัพธ์ทั้งหมด</p>
+                                    <div className="z-10">
+                                        <h2 className="text-4xl font-extrabold tracking-tight">{stats.totalTrees.toLocaleString()}</h2>
+                                        <p className="text-xs text-green-200 mt-1 font-medium bg-green-800/30 inline-block px-2 py-0.5 rounded-full">จาก {stats.totalRecords.toLocaleString()} จุดพิกัด</p>
+                                    </div>
                                 </div>
 
                                 {globalOptions.types.map(t => {
                                     const style = getTreeStyle(t);
-                                    // Find value in stats
                                     const typeObj = stats.tableType.find(x => x.name === t);
                                     const val = typeObj ? typeObj.value : 0;
                                     return (
-                                        <div key={t} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center hover:shadow-md transition-shadow relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 p-3 opacity-20" style={{color: style.color}}><IconLeaf size={40}/></div>
-                                            <h3 className="text-gray-500 text-xs font-bold mb-1">{t}</h3>
-                                            <p className="text-2xl font-black text-gray-800">{val.toLocaleString()} <span className="text-xs font-normal text-gray-400">ต้น</span></p>
+                                        <div key={t} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden hover:shadow-md transition-all duration-300 group h-32 flex flex-col justify-between">
+                                            <div className="absolute top-0 right-0 w-2 h-full" style={{backgroundColor: style.border}}></div>
+                                            <div className="flex justify-between items-start">
+                                                <div className="p-2 rounded-lg" style={{backgroundColor: style.bg, color: style.color}}><IconLeaf size={20}/></div>
+                                                <div className="text-right">
+                                                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">{t}</p>
+                                                    <p className="text-3xl font-black text-gray-800">{val.toLocaleString()}</p>
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            {/* 3. Map & Gallery Split Row */}
-                            <div id="map-gallery-section" className="flex flex-col xl:flex-row h-[500px] xl:h-[550px] gap-4">
-                                {/* Map */}
-                                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+                            {/* Map & Gallery Section */}
+                            <div id="map-gallery-section" className="flex flex-col xl:flex-row h-[600px] xl:h-[600px] gap-6">
+                                <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
                                     <MapComponent data={filteredData} focusLocation={mapFocusLocation} />
                                 </div>
                                 
-                                {/* Gallery List */}
-                                <div className="w-full xl:w-[28rem] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden h-full">
-                                    <div className="bg-gray-50 p-3 border-b border-gray-200 flex justify-between items-center text-sm">
-                                        <span className="font-bold text-gray-700 flex items-center gap-2"><IconSearchMap size={16}/> รายการพิกัดล่าสุด</span>
-                                        <span className="text-xs text-gray-500">แสดงสูงสุด 100 รายการ</span>
+                                <div className="w-full xl:w-[26rem] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden h-full">
+                                    <div className="bg-white p-4 border-b border-gray-100 flex justify-between items-center">
+                                        <span className="font-bold text-gray-800 flex items-center gap-2 text-lg"><IconSearchMap size={20} className="text-blue-600"/> พิกัดล่าสุด</span>
+                                        <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-full">100 รายการ</span>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50 custom-scrollbar">
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 custom-scrollbar">
                                         {galleryItems.length === 0 ? (
-                                            <div className="text-center py-10 text-gray-400 flex flex-col items-center gap-2">
-                                                <IconTree size={30} className="text-gray-300"/>
+                                            <div className="text-center py-20 text-gray-400 flex flex-col items-center gap-3">
+                                                <div className="p-4 bg-gray-100 rounded-full"><IconTree size={32}/></div>
                                                 <span>ไม่พบข้อมูลตามเงื่อนไข</span>
                                             </div>
                                         ) : (
@@ -678,32 +691,31 @@
                                                 const badgeStyle = getTreeStyle(item.type);
                                                 return (
                                                     <div key={`${item.id}-${index}`} onClick={() => handleZoomToMap(item)} 
-                                                         className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-green-400 transition-all cursor-pointer group flex h-28">
-                                                        {/* Image Left */}
-                                                        <div className="w-1/3 relative bg-gray-100 flex-shrink-0">
+                                                         className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-green-300 transition-all cursor-pointer group flex h-28 transform hover:-translate-y-1 duration-200">
+                                                        <div className="w-32 relative bg-gray-200 flex-shrink-0">
                                                             {item.image && item.image.startsWith('http') ? (
-                                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
+                                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy"/>
                                                             ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-gray-300"><IconTree size={24}/></div>
+                                                                <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><IconTree size={32}/></div>
                                                             )}
-                                                            <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-green-800 shadow-sm" style={{backgroundColor: badgeStyle.bg}}>
-                                                                {item.type}
+                                                            <div className="absolute bottom-0 left-0 right-0 p-1 card-gradient-overlay">
+                                                                <span className="text-[9px] font-bold text-white px-1.5 py-0.5 rounded" style={{backgroundColor: badgeStyle.color}}>{item.type}</span>
                                                             </div>
                                                         </div>
-                                                        {/* Info Right */}
-                                                        <div className="w-2/3 p-3 flex flex-col justify-between">
+                                                        <div className="flex-1 p-3 flex flex-col justify-between">
                                                             <div>
-                                                                <h4 className="font-bold text-gray-800 text-sm line-clamp-1 mb-0.5" title={item.name}>{item.name || 'ไม่ระบุชื่อ'}</h4>
-                                                                <div className="flex items-center gap-1 text-[11px] text-gray-500">
-                                                                    <IconMap size={10} className="flex-shrink-0"/>
+                                                                <h4 className="font-bold text-gray-800 text-sm line-clamp-1 mb-1 group-hover:text-green-700 transition-colors" title={item.name}>{item.name || 'ไม่ระบุชื่อ'}</h4>
+                                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                                    <IconMap size={12} className="text-gray-400 flex-shrink-0"/>
                                                                     <span className="line-clamp-1">เขต{item.district}</span>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex justify-between items-end">
-                                                                <div>
-                                                                    <span className="font-black text-green-700 text-sm leading-none">{item.quantity}</span> <span className="text-[10px] text-gray-400">ต้น</span>
+                                                            <div className="flex justify-between items-end border-t border-gray-50 pt-2">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-400 font-medium uppercase">จำนวน</span>
+                                                                    <span className="font-black text-green-600 text-base leading-none">{item.quantity}</span>
                                                                 </div>
-                                                                <div className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                                <div className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
                                                                     {item.date}
                                                                 </div>
                                                             </div>
@@ -716,35 +728,41 @@
                                 </div>
                             </div>
 
-                            {/* 4. Charts Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-h-[350px]">
-                                    <h3 className="text-base font-bold text-gray-700 mb-4 flex items-center gap-2"><IconBarChart size={18} className="text-green-600"/> 10 อันดับเขต (ตามตัวกรอง)</h3>
-                                    <div className="h-[280px]">
+                            {/* Charts & Tables */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2 border-b border-gray-100 pb-3">
+                                        <div className="bg-green-100 p-1.5 rounded-lg text-green-700"><IconBarChart size={18}/></div>
+                                        10 อันดับเขต (ตามตัวกรอง)
+                                    </h3>
+                                    <div className="h-[300px]">
                                         {window.Recharts && stats.chartDataDistrict.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={stats.chartDataDistrict} layout="vertical" margin={{left: 40, top:5, bottom:5, right:20}}>
-                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                    <XAxis type="number" />
-                                                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
-                                                    <Tooltip cursor={{fill: '#f0fdf4'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
-                                                    <Bar dataKey="value" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={20} />
+                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0"/>
+                                                    <XAxis type="number" tick={{fontSize: 11, fill: '#9ca3af'}} axisLine={false} tickLine={false}/>
+                                                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12, fill: '#4b5563', fontWeight: 500}} axisLine={false} tickLine={false}/>
+                                                    <Tooltip cursor={{fill: '#f0fdf4'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
+                                                    <Bar dataKey="value" fill="#22c55e" radius={[0, 6, 6, 0]} barSize={16} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         ) : <div className="h-full flex items-center justify-center text-sm text-gray-400">ไม่มีข้อมูล</div>}
                                     </div>
                                 </div>
-                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-h-[350px]">
-                                    <h3 className="text-base font-bold text-gray-700 mb-4 flex items-center gap-2"><IconTree size={18} className="text-green-600"/> สัดส่วนประเภท (ตามตัวกรอง)</h3>
-                                    <div className="h-[280px]">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2 border-b border-gray-100 pb-3">
+                                        <div className="bg-green-100 p-1.5 rounded-lg text-green-700"><IconTree size={18}/></div>
+                                        สัดส่วนประเภท (ตามตัวกรอง)
+                                    </h3>
+                                    <div className="h-[300px]">
                                         {window.Recharts && stats.chartDataType.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
-                                                    <Pie data={stats.chartDataType} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value">
-                                                        {stats.chartDataType.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                                                    <Pie data={stats.chartDataType} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value">
+                                                        {stats.chartDataType.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0}/>))}
                                                     </Pie>
-                                                    <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
-                                                    <Legend verticalAlign="bottom" height={36}/>
+                                                    <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
+                                                    <Legend verticalAlign="bottom" height={36} iconType="circle"/>
                                                 </PieChart>
                                             </ResponsiveContainer>
                                         ) : <div className="h-full flex items-center justify-center text-sm text-gray-400">ไม่มีข้อมูล</div>}
@@ -752,68 +770,71 @@
                                 </div>
                             </div>
 
-                            {/* 5. Summary Lists Row */}
+                            {/* Summary Lists */}
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                                <SummaryList title="ยอดปลูกรายเขต" data={stats.tableDistrict} icon={<IconMap size={14}/>} />
-                                <SummaryList title="ยอดปลูกแต่ละประเภท" data={stats.tableType} icon={<IconTree size={14}/>} />
-                                <SummaryList title="ชนิดต้นไม้ยอดนิยม" data={stats.tableSpecies} icon={<IconLeaf size={14}/>} />
-                                <SummaryList title="ยอดปลูกแต่ละช่วงเดือน" data={stats.tableMonth} icon={<IconCalendar size={14}/>} formatName={formatMonthYearTH} />
+                                <SummaryList title="ยอดปลูกรายเขต" data={stats.tableDistrict} icon={<IconMap size={16}/>} />
+                                <SummaryList title="ยอดปลูกแต่ละประเภท" data={stats.tableType} icon={<IconTree size={16}/>} />
+                                <SummaryList title="ชนิดต้นไม้ยอดนิยม" data={stats.tableSpecies} icon={<IconLeaf size={16}/>} />
+                                <SummaryList title="ยอดปลูกแต่ละช่วงเดือน" data={stats.tableMonth} icon={<IconCalendar size={16}/>} formatName={formatMonthYearTH} />
                             </div>
 
-                            {/* 6. Matrix Table */}
+                            {/* Matrix Table */}
                             <div className="pb-8">
-                                <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                    <IconTable size={20} className="text-green-600"/> รายละเอียดการปลูกรายเขตจำแนกตามประเภท (ต้น)
-                                </h2>
-                                <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200 custom-scrollbar max-h-[500px]">
-                                    <table className="min-w-full text-sm text-left text-gray-600 custom-table relative">
-                                        <thead className="text-[11px] text-gray-500 uppercase bg-gray-50 border-b border-gray-200 tracking-wider">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-4 font-bold sticky left-0 bg-gray-50 z-20 shadow-[1px_0_0_0_#e5e7eb]">เขต</th>
-                                                {globalOptions.types.map(t => (
-                                                    <th key={t} scope="col" className="px-6 py-4 text-right font-bold">{t}</th>
-                                                ))}
-                                                <th scope="col" className="px-6 py-4 text-right font-bold bg-green-50 text-green-800">รวมทั้งหมด</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {stats.matrixData.length === 0 ? (
-                                                <tr><td colSpan={globalOptions.types.length + 2} className="text-center py-8 text-gray-400">ไม่มีข้อมูลตามตัวกรอง</td></tr>
-                                            ) : (
-                                                stats.matrixData.map((row, idx) => (
-                                                    <tr key={idx} className="bg-white border-b border-gray-50 hover:bg-green-50/50 transition-colors">
-                                                        <td className="px-6 py-3 font-semibold text-gray-700 whitespace-nowrap sticky left-0 bg-white shadow-[1px_0_0_0_#f3f4f6] group-hover:bg-green-50">
-                                                            {row.district}
-                                                        </td>
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                    <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+                                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                            <IconTable size={20} className="text-green-600"/> ตารางสรุปการปลูกรายเขตจำแนกตามประเภท
+                                        </h2>
+                                    </div>
+                                    <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
+                                        <table className="min-w-full text-sm text-left text-gray-600 custom-table relative">
+                                            <thead className="text-xs text-gray-500 uppercase bg-gray-50 font-semibold tracking-wider">
+                                                <tr>
+                                                    <th scope="col" className="px-6 py-4 font-bold sticky left-0 bg-gray-50 z-20 shadow-[1px_0_0_0_#e5e7eb]">เขต</th>
+                                                    {globalOptions.types.map(t => (
+                                                        <th key={t} scope="col" className="px-6 py-4 text-right font-bold">{t}</th>
+                                                    ))}
+                                                    <th scope="col" className="px-6 py-4 text-right font-black text-green-800 bg-green-50/50">รวมทั้งหมด</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {stats.matrixData.length === 0 ? (
+                                                    <tr><td colSpan={globalOptions.types.length + 2} className="text-center py-12 text-gray-400">ไม่มีข้อมูลตามตัวกรอง</td></tr>
+                                                ) : (
+                                                    stats.matrixData.map((row, idx) => (
+                                                        <tr key={idx} className="bg-white hover:bg-green-50/30 transition-colors">
+                                                            <td className="px-6 py-3.5 font-semibold text-gray-700 whitespace-nowrap sticky left-0 bg-white shadow-[1px_0_0_0_#f3f4f6] group-hover:bg-green-50">
+                                                                {row.district}
+                                                            </td>
+                                                            {globalOptions.types.map(t => (
+                                                                <td key={t} className="px-6 py-3.5 text-right font-medium">
+                                                                    {row[t] ? row[t].toLocaleString() : <span className="text-gray-200">-</span>}
+                                                                </td>
+                                                            ))}
+                                                            <td className="px-6 py-3.5 text-right font-bold text-green-700 bg-green-50/20">
+                                                                {row.total.toLocaleString()}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                            {stats.matrixData.length > 0 && (
+                                                <tfoot>
+                                                    <tr>
+                                                        <th scope="row" className="px-6 py-4 sticky left-0 z-20 shadow-[1px_0_0_0_#bbf7d0] whitespace-nowrap font-black text-gray-800">ยอดรวม (ตามตัวกรอง)</th>
                                                         {globalOptions.types.map(t => (
-                                                            <td key={t} className="px-6 py-3 text-right">
-                                                                {row[t] ? row[t].toLocaleString() : '-'}
+                                                            <td key={t} className="px-6 py-4 text-right font-bold text-green-700">
+                                                                {stats.matrixTotals[t] ? stats.matrixTotals[t].toLocaleString() : '0'}
                                                             </td>
                                                         ))}
-                                                        <td className="px-6 py-3 text-right font-bold text-green-700 bg-green-50/30">
-                                                            {row.total.toLocaleString()}
+                                                        <td className="px-6 py-4 text-right font-black text-lg text-green-800 bg-green-100/30">
+                                                            {stats.matrixTotals.total.toLocaleString()}
                                                         </td>
                                                     </tr>
-                                                ))
+                                                </tfoot>
                                             )}
-                                        </tbody>
-                                        {/* Footer Totals */}
-                                        {stats.matrixData.length > 0 && (
-                                            <tfoot className="text-sm font-bold text-gray-800 bg-green-50">
-                                                <tr>
-                                                    <th scope="row" className="px-6 py-4 sticky left-0 z-20 shadow-[1px_0_0_0_#bbf7d0] whitespace-nowrap">ยอดรวม (ตามตัวกรอง)</th>
-                                                    {globalOptions.types.map(t => (
-                                                        <td key={t} className="px-6 py-4 text-right text-green-700">
-                                                            {stats.matrixTotals[t] ? stats.matrixTotals[t].toLocaleString() : '0'}
-                                                        </td>
-                                                    ))}
-                                                    <td className="px-6 py-4 text-right text-lg text-green-800 bg-green-100/50">
-                                                        {stats.matrixTotals.total.toLocaleString()}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        )}
-                                    </table>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
 
