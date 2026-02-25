@@ -153,7 +153,6 @@
         const L = window.L;
 
         const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXj3ANlfrhd00qkUJlPPSqR6GrIZethvWJem7gyLBGyihVjIqE4Lx2hTufmLuNgmK8NR89vQly0WeU/pub?gid=0&single=true&output=csv";
-        // Precise Bangkok Bounds
         const BANGKOK_BOUNDS = [[13.49, 100.32], [13.96, 100.93]];
         const COLORS = ['#16a34a', '#84cc16', '#10b981', '#15803d', '#4ade80', '#14532d', '#059669', '#34d399'];
 
@@ -209,11 +208,12 @@
         };
 
         const getTreeStyle = (typeStr) => {
+            // Colors exactly matching map markers
             if (!typeStr) return { color: '#10b981', bg: '#ecfdf5', border: '#34d399' }; 
-            if (typeStr.includes('ยืนต้น')) return { color: '#15803d', bg: '#dcfce7', border: '#22c55e' }; 
-            if (typeStr.includes('พุ่ม')) return { color: '#65a30d', bg: '#ecfccb', border: '#84cc16' }; 
-            if (typeStr.includes('เลื้อย')) return { color: '#059669', bg: '#d1fae5', border: '#34d399' }; 
-            return { color: '#10b981', bg: '#ecfdf5', border: '#34d399' }; 
+            if (typeStr.includes('ยืนต้น')) return { color: '#15803d', bg: '#dcfce7', border: '#22c55e' }; // Dark Green
+            if (typeStr.includes('พุ่ม')) return { color: '#84cc16', bg: '#ecfccb', border: '#a3e635' }; // Lime
+            if (typeStr.includes('เลื้อย')) return { color: '#10b981', bg: '#d1fae5', border: '#34d399' }; // Emerald
+            return { color: '#10b981', bg: '#ecfdf5', border: '#34d399' }; // Default Emerald
         };
 
         const getRichPopupHTML = (item, typeColor) => {
@@ -290,9 +290,11 @@
                     zoomControl: false
                 });
                 
-                // Set explicit Bangkok bounds and restrict
-                map.fitBounds(BANGKOK_BOUNDS);
-                map.setMaxBounds([[13.0, 99.5], [14.5, 101.5]]); // Slightly wider than BKK to allow panning around edges
+                // Explicitly set view to Bangkok
+                map.setView([13.7563, 100.5018], 11);
+                
+                // Restrict bounds slightly to prevent getting lost
+                map.setMaxBounds([[13.0, 99.5], [14.5, 101.5]]);
                 map.setMinZoom(9);
                 
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -348,7 +350,7 @@
                 }
             }, [focusLocation]);
 
-            // Handle Normal Markers
+            // Handle Normal Markers & Auto-Zoom on Filter
             useEffect(() => {
                 if (!mapInstanceRef.current || !markersLayerRef.current) return;
                 markersLayerRef.current.clearLayers();
@@ -362,14 +364,20 @@
                     markersLayerRef.current.addLayer(marker);
                 });
 
+                // Auto Fit Bounds logic
                 if (!focusLocation && data.length > 0) {
                      try {
-                        // Re-fit to Bangkok bounds initially or when filter changes widely, 
-                        // but prefer keeping user view if they zoomed in? 
-                        // For now, let's just ensure we are within reasonable bounds if everything is reset.
-                        // Actually, let's just fit bounds of data if it changes significantly? 
-                        // No, let's stick to Bangkok bounds as default unless focusing.
-                     } catch(e) {}
+                        const group = L.featureGroup(markersLayerRef.current.getLayers());
+                        if (group.getLayers().length > 0) {
+                            mapInstanceRef.current.fitBounds(group.getBounds(), { padding: [30, 30], maxZoom: 15 });
+                        } else {
+                             // Fallback to Bangkok bounds if filtered results are 0 but reset
+                             mapInstanceRef.current.fitBounds(BANGKOK_BOUNDS);
+                        }
+                     } catch(e) {
+                         // Fallback
+                         mapInstanceRef.current.setView([13.7563, 100.5018], 11);
+                     }
                 }
             }, [data, focusLocation]); 
 
@@ -472,7 +480,11 @@
                 return result;
             }, [data, filterDistrict, filterType, filterMonth, filterSpecies]);
 
-            // Compute Stats
+            // Reset Map Focus when Filter Changes (Triggers auto-zoom in MapComponent)
+            useEffect(() => {
+                setMapFocusLocation(null);
+            }, [filterDistrict]);
+
             const stats = useMemo(() => {
                 const totalTrees = filteredData.reduce((acc, curr) => acc + (parseInt(curr.quantity) || 0), 0);
                 
@@ -481,7 +493,6 @@
                 const monthCounts = {};
                 const speciesCounts = {};
                 const districtTypeMatrix = {}; 
-
                 const matrixTotals = { total: 0 };
 
                 filteredData.forEach(item => {
@@ -502,7 +513,6 @@
                 });
 
                 const topDistrict = Object.entries(districtCounts).sort((a, b) => b[1] - a[1])[0] || ['-', 0];
-                
                 const chartDataDistrict = Object.keys(districtCounts).map(k => ({ name: k, value: districtCounts[k] })).sort((a,b) => b.value - a.value).slice(0, 10);
                 const chartDataType = Object.keys(typeCounts).map(k => ({ name: k, value: typeCounts[k] })).filter(item => item.value > 0);
 
@@ -580,13 +590,13 @@
                     </aside>
 
                     {/* Mobile Header */}
-                    <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white shadow-sm z-50 flex items-center justify-between px-4 border-b border-green-100">
+                    <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white shadow-sm z-50 flex items-center justify-between px-4 border-b border-green-100">
                         <div className="font-bold text-green-800 flex items-center gap-2"><IconTree size={20}/> Bangkok Green</div>
                         <button onClick={fetchSheetData} className="text-blue-600 p-2"><IconRefresh size={20}/></button>
                     </div>
 
                     {/* Main Content */}
-                    <main className="flex-1 flex flex-col relative h-full pt-16 md:pt-0 overflow-hidden bg-slate-50">
+                    <main className="flex-1 flex flex-col relative h-full pt-14 md:pt-0 overflow-hidden bg-slate-50">
                         
                         {/* Loading/Error */}
                         {loading && (
@@ -639,15 +649,14 @@
                         {/* Scrollable Body */}
                         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar scroll-smooth">
                             
-                            {/* Summary Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="bg-gradient-to-br from-green-700 to-green-600 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden flex flex-col justify-between h-32">
-                                    <div className="absolute -right-6 -bottom-6 opacity-10 transform rotate-12"><IconTree size={120}/></div>
-                                    <p className="text-green-100 text-sm font-medium z-10">ผลลัพธ์ทั้งหมด</p>
-                                    <div className="z-10">
-                                        <h2 className="text-4xl font-extrabold tracking-tight">{stats.totalTrees.toLocaleString()}</h2>
-                                        <p className="text-xs text-green-200 mt-1 font-medium bg-green-800/30 inline-block px-2 py-0.5 rounded-full">จาก {stats.totalRecords.toLocaleString()} จุดพิกัด</p>
+                            {/* Compact Summary Row (Reduced Height) */}
+                            <div className="flex flex-row gap-3 overflow-x-auto pb-2">
+                                <div className="min-w-[200px] flex-1 bg-gradient-to-r from-green-700 to-green-600 text-white px-4 py-3 rounded-xl shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <p className="text-green-100 text-[10px] font-bold uppercase tracking-wider">ทั้งหมด</p>
+                                        <p className="text-2xl font-black">{stats.totalTrees.toLocaleString()}</p>
                                     </div>
+                                    <div className="bg-white/20 p-2 rounded-lg"><IconTree size={20}/></div>
                                 </div>
 
                                 {globalOptions.types.map(t => {
@@ -655,27 +664,25 @@
                                     const typeObj = stats.tableType.find(x => x.name === t);
                                     const val = typeObj ? typeObj.value : 0;
                                     return (
-                                        <div key={t} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden hover:shadow-md transition-all duration-300 group h-32 flex flex-col justify-between">
-                                            <div className="absolute top-0 right-0 w-2 h-full" style={{backgroundColor: style.border}}></div>
-                                            <div className="flex justify-between items-start">
-                                                <div className="p-2 rounded-lg" style={{backgroundColor: style.bg, color: style.color}}><IconLeaf size={20}/></div>
-                                                <div className="text-right">
-                                                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">{t}</p>
-                                                    <p className="text-3xl font-black text-gray-800">{val.toLocaleString()}</p>
-                                                </div>
+                                        <div key={t} className="min-w-[180px] flex-1 bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">{t}</p>
+                                                <p className="text-xl font-black text-gray-800" style={{color: style.color}}>{val.toLocaleString()}</p>
                                             </div>
+                                            <div className="p-2 rounded-lg" style={{backgroundColor: style.bg, color: style.color}}><IconLeaf size={18}/></div>
                                         </div>
                                     );
                                 })}
                             </div>
 
                             {/* Map & Gallery Section */}
-                            <div id="map-gallery-section" className="flex flex-col xl:flex-row h-[600px] xl:h-[600px] gap-6">
+                            <div id="map-gallery-section" className="flex flex-col xl:flex-row h-[600px] xl:h-[650px] gap-6">
                                 <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
                                     <MapComponent data={filteredData} focusLocation={mapFocusLocation} />
                                 </div>
                                 
-                                <div className="w-full xl:w-[26rem] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden h-full">
+                                {/* Expanded Gallery Width */}
+                                <div className="w-full xl:w-[28rem] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden h-full">
                                     <div className="bg-white p-4 border-b border-gray-100 flex justify-between items-center">
                                         <span className="font-bold text-gray-800 flex items-center gap-2 text-lg"><IconSearchMap size={20} className="text-blue-600"/> พิกัดล่าสุด</span>
                                         <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-full">100 รายการ</span>
